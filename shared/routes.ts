@@ -43,6 +43,20 @@ const insertDebtSchemaCoerced = insertDebtSchema.extend({
   dueDate: z.coerce.date(),
 });
 
+const insertTaskSchemaCoerced = insertTaskSchema.extend({
+  dueDate: z.preprocess(
+    (val) => (val === "" || val === undefined || val === null ? undefined : val),
+    z.coerce.date().optional().nullable()
+  ),
+});
+
+const insertGoalSchemaCoerced = insertGoalSchema.extend({
+  targetDate: z.preprocess(
+    (val) => (val === "" || val === undefined || val === null ? undefined : val),
+    z.coerce.date().optional().nullable()
+  ),
+});
+
 // ============================================
 // SHARED ERROR SCHEMAS
 // ============================================
@@ -178,13 +192,13 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/tasks',
-      input: insertTaskSchema,
+      input: insertTaskSchemaCoerced,
       responses: { 201: z.custom<typeof tasks.$inferSelect>() },
     },
     update: {
       method: 'PATCH' as const,
       path: '/api/tasks/:id',
-      input: insertTaskSchema.partial(),
+      input: insertTaskSchemaCoerced.partial(),
       responses: { 200: z.custom<typeof tasks.$inferSelect>() },
     },
     delete: {
@@ -202,13 +216,13 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/goals',
-      input: insertGoalSchema,
+      input: insertGoalSchemaCoerced,
       responses: { 201: z.custom<typeof goals.$inferSelect>() },
     },
     update: {
       method: 'PATCH' as const,
       path: '/api/goals/:id',
-      input: insertGoalSchema.partial(),
+      input: insertGoalSchemaCoerced.partial(),
       responses: { 200: z.custom<typeof goals.$inferSelect>() },
     },
     delete: {
