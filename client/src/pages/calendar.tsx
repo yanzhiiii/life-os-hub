@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEvents, useCreateEvent, useDeleteEvent } from "@/hooks/use-events";
-import { useDayStatuses, useUpsertDayStatus } from "@/hooks/use-day-statuses";
+import { useDayStatuses, useUpsertDayStatus, useDeleteDayStatus } from "@/hooks/use-day-statuses";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertEventSchema } from "@shared/schema";
@@ -36,7 +36,9 @@ export default function CalendarPage() {
   const { mutate: createEvent } = useCreateEvent();
   const { mutate: deleteEvent } = useDeleteEvent();
   const { mutate: upsertDayStatus } = useUpsertDayStatus();
+  const { mutate: deleteDayStatus } = useDeleteDayStatus();
   const [isOpen, setIsOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [customLabel, setCustomLabel] = useState("");
@@ -352,48 +354,96 @@ export default function CalendarPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
-                <p className="text-sm font-medium mb-3">Day Status</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {dayStatusOptions.filter(o => o.value !== "custom").map((option) => {
-                    const Icon = option.icon;
-                    const isActive = selectedDayStatus?.status === option.value;
-                    return (
-                      <Button
-                        key={option.value}
-                        variant={isActive ? "default" : "outline"}
-                        size="sm"
-                        className={cn("justify-start", isActive && option.color)}
-                        onClick={() => handleStatusChange(option.value)}
-                        data-testid={`button-status-${option.value}`}
-                      >
-                        <Icon className="w-4 h-4 mr-2" />
-                        {option.label}
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium">Day Status</p>
+                  <Dialog open={isStatusOpen} onOpenChange={setIsStatusOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" data-testid="button-set-status">
+                        {selectedDayStatus ? "Change" : "Set Status"}
                       </Button>
-                    );
-                  })}
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Set Day Status for {format(selectedDate, "MMMM d, yyyy")}</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-4">
+                        <div className="grid grid-cols-2 gap-2">
+                          {dayStatusOptions.filter(o => o.value !== "custom").map((option) => {
+                            const Icon = option.icon;
+                            const isActive = selectedDayStatus?.status === option.value;
+                            return (
+                              <Button
+                                key={option.value}
+                                variant={isActive ? "default" : "outline"}
+                                className={cn("justify-start", isActive && option.color)}
+                                onClick={() => {
+                                  handleStatusChange(option.value);
+                                  setIsStatusOpen(false);
+                                }}
+                                data-testid={`button-status-${option.value}`}
+                              >
+                                <Icon className="w-4 h-4 mr-2" />
+                                {option.label}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Custom label..."
+                            value={customLabel}
+                            onChange={(e) => setCustomLabel(e.target.value)}
+                            className="flex-1"
+                            data-testid="input-custom-status"
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              handleStatusChange("custom");
+                              setIsStatusOpen(false);
+                            }}
+                            disabled={!customLabel}
+                            data-testid="button-status-custom"
+                          >
+                            <Tag className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        {selectedDayStatus && (
+                          <Button
+                            variant="destructive"
+                            className="w-full"
+                            onClick={() => {
+                              deleteDayStatus(format(selectedDate, "yyyy-MM-dd"));
+                              setIsStatusOpen(false);
+                            }}
+                            data-testid="button-clear-status"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Clear Status
+                          </Button>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
-                <div className="mt-3 flex gap-2">
-                  <Input
-                    placeholder="Custom label..."
-                    value={customLabel}
-                    onChange={(e) => setCustomLabel(e.target.value)}
-                    className="flex-1"
-                    data-testid="input-custom-status"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleStatusChange("custom")}
-                    disabled={!customLabel}
-                    data-testid="button-status-custom"
-                  >
-                    <Tag className="w-4 h-4" />
-                  </Button>
-                </div>
-                {selectedDayStatus?.status === "custom" && selectedDayStatus.customLabel && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Current: {selectedDayStatus.customLabel}
-                  </p>
+                {selectedDayStatus ? (
+                  <div className={cn(
+                    "flex items-center gap-2 p-3 rounded-md",
+                    dayStatusOptions.find(o => o.value === selectedDayStatus.status)?.color || "bg-muted"
+                  )}>
+                    {(() => {
+                      const option = dayStatusOptions.find(o => o.value === selectedDayStatus.status);
+                      const Icon = option?.icon || Tag;
+                      return <Icon className="w-5 h-5" />;
+                    })()}
+                    <span className="font-medium">
+                      {selectedDayStatus.status === "custom" && selectedDayStatus.customLabel
+                        ? selectedDayStatus.customLabel
+                        : dayStatusOptions.find(o => o.value === selectedDayStatus.status)?.label || "Unknown"}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No status set for this day</p>
                 )}
               </div>
 

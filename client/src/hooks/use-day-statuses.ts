@@ -35,3 +35,14 @@ export function useUpsertDayStatus() {
     },
   });
 }
+
+export function useDeleteDayStatus() {
+  return useMutation({
+    mutationFn: async (date: string) => {
+      return apiRequest("DELETE", `/api/day-statuses/${date}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/day-statuses"] });
+    },
+  });
+}

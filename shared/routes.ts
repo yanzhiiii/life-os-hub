@@ -119,6 +119,11 @@ export const api = {
       input: insertDayStatusSchema.omit({ date: true }),
       responses: { 200: z.custom<typeof dayStatuses.$inferSelect>() },
     },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/day-statuses/:date',
+      responses: { 204: z.void() },
+    },
   },
   routines: {
     list: {

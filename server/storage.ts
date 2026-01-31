@@ -83,6 +83,7 @@ export interface IStorage {
   getDayStatuses(userId: number): Promise<DayStatus[]>;
   getDayStatusByDate(userId: number, date: string): Promise<DayStatus | undefined>;
   upsertDayStatus(userId: number, date: string, status: Partial<InsertDayStatus>): Promise<DayStatus>;
+  deleteDayStatus(userId: number, date: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -330,6 +331,11 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  async deleteDayStatus(userId: number, date: string): Promise<void> {
+    await db.delete(dayStatuses)
+      .where(and(eq(dayStatuses.userId, userId), eq(dayStatuses.date, date)));
   }
 }
 
