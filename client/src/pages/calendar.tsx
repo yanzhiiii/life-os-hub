@@ -24,6 +24,7 @@ const eventSchema = insertEventSchema.extend({
 const dayStatusOptions = [
   { value: "working", label: "Working Day", icon: Briefcase, color: "text-blue-600 bg-blue-100 dark:bg-blue-900/30" },
   { value: "rest", label: "Rest Day", icon: Coffee, color: "text-green-600 bg-green-100 dark:bg-green-900/30" },
+  { value: "standby", label: "Standby", icon: Clock, color: "text-orange-600 bg-orange-100 dark:bg-orange-900/30" },
   { value: "sick_leave", label: "Sick Leave", icon: Stethoscope, color: "text-red-600 bg-red-100 dark:bg-red-900/30" },
   { value: "annual_leave", label: "Annual Leave", icon: Palmtree, color: "text-amber-600 bg-amber-100 dark:bg-amber-900/30" },
   { value: "custom", label: "Custom", icon: Tag, color: "text-purple-600 bg-purple-100 dark:bg-purple-900/30" },
@@ -171,6 +172,7 @@ export default function CalendarPage() {
                   hasEvents: (date) => !!daysWithEvents[format(date, "yyyy-MM-dd")],
                   working: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "working",
                   rest: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "rest",
+                  standby: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "standby",
                   sick: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "sick_leave",
                   annual: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "annual_leave",
                 }}
@@ -178,6 +180,7 @@ export default function CalendarPage() {
                   hasEvents: { fontWeight: "bold", textDecoration: "underline" },
                   working: { backgroundColor: "rgb(219 234 254)", borderRadius: "4px" },
                   rest: { backgroundColor: "rgb(220 252 231)", borderRadius: "4px" },
+                  standby: { backgroundColor: "rgb(255 237 213)", borderRadius: "4px" },
                   sick: { backgroundColor: "rgb(254 226 226)", borderRadius: "4px" },
                   annual: { backgroundColor: "rgb(254 243 199)", borderRadius: "4px" },
                 }}

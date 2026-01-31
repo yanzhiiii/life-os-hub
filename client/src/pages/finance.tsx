@@ -246,19 +246,17 @@ function TransactionsView() {
           <CardContent className="h-[300px]">
             {categoryData.length > 0 ? (
               <>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
                     <Pie
                       data={categoryData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={40}
-                      outerRadius={70}
+                      innerRadius={30}
+                      outerRadius={55}
                       fill="#8884d8"
                       paddingAngle={2}
                       dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelLine={true}
                     >
                       {categoryData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -267,13 +265,20 @@ function TransactionsView() {
                     <ReTooltip />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="flex flex-wrap justify-center gap-2 mt-4">
-                  {categoryData.map((entry, index) => (
-                    <div key={entry.name} className="flex items-center gap-1 text-xs">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                      {entry.name}
-                    </div>
-                  ))}
+                <div className="space-y-1 mt-2">
+                  {categoryData.map((entry, index) => {
+                    const total = categoryData.reduce((acc, e) => acc + e.value, 0);
+                    const percent = total > 0 ? ((entry.value / total) * 100).toFixed(0) : 0;
+                    return (
+                      <div key={entry.name} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                          <span>{entry.name}</span>
+                        </div>
+                        <span className="font-medium">{percent}%</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -874,14 +879,14 @@ function FinanceCalendarView() {
         </Card>
       )}
       
-      <div className="grid lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 shadow-md">
-          <CardHeader>
+      <div className="grid lg:grid-cols-5 gap-6">
+        <Card className="lg:col-span-3 shadow-md">
+          <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle>{format(currentMonth, "MMMM yyyy")}</CardTitle>
-              <div className="flex gap-2">
+              <CardTitle className="text-lg">{format(currentMonth, "MMMM yyyy")}</CardTitle>
+              <div className="flex gap-1">
                 <Button 
-                  variant="outline" 
+                  variant="ghost" 
                   size="icon"
                   onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
                   data-testid="button-prev-month"
@@ -889,7 +894,7 @@ function FinanceCalendarView() {
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
                 <Button 
-                  variant="outline" 
+                  variant="ghost" 
                   size="icon"
                   onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
                   data-testid="button-next-month"
@@ -899,17 +904,17 @@ function FinanceCalendarView() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-7 gap-1 mb-2">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+          <CardContent className="pt-2">
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                <div key={i} className="text-center text-xs font-medium text-muted-foreground py-1">
                   {day}
                 </div>
               ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
               {Array.from({ length: startPadding }).map((_, i) => (
-                <div key={`pad-${i}`} className="aspect-square" />
+                <div key={`pad-${i}`} className="h-12" />
               ))}
               {calendarDays.map(day => {
                 const summary = getDaySummary(day);
@@ -922,16 +927,17 @@ function FinanceCalendarView() {
                     key={day.toISOString()}
                     onClick={() => setSelectedDate(day)}
                     className={cn(
-                      "aspect-square p-1 rounded-lg text-sm transition-all relative flex flex-col items-center justify-start",
+                      "h-12 p-1 rounded text-xs transition-all relative flex flex-col items-center justify-start",
                       isToday && "ring-2 ring-primary",
                       isSelected && "bg-primary text-primary-foreground",
+                      !isSelected && hasTransactions && "bg-secondary/30",
                       !isSelected && "hover:bg-secondary/50"
                     )}
                     data-testid={`finance-day-${format(day, "yyyy-MM-dd")}`}
                   >
-                    <span className="font-medium">{format(day, "d")}</span>
+                    <span className="font-medium text-sm">{format(day, "d")}</span>
                     {hasTransactions && (
-                      <div className="flex flex-col items-center gap-0.5 text-[10px] mt-0.5">
+                      <div className="flex flex-col items-center text-[9px] leading-tight">
                         {summary.income > 0 && (
                           <span className={cn(
                             "text-green-600",
@@ -957,7 +963,7 @@ function FinanceCalendarView() {
           </CardContent>
         </Card>
         
-        <Card className="shadow-md">
+        <Card className="lg:col-span-2 shadow-md">
           <CardHeader>
             <CardTitle>
               {selectedDate ? format(selectedDate, "MMMM d, yyyy") : "Select a Date"}
