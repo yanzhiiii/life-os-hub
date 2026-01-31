@@ -27,6 +27,14 @@ import {
   dayStatuses
 } from './schema';
 
+const insertEventSchemaCoerced = insertEventSchema.extend({
+  startTime: z.coerce.date(),
+  endTime: z.preprocess(
+    (val) => (val === "" || val === undefined || val === null ? undefined : val),
+    z.coerce.date().optional().nullable()
+  ),
+});
+
 // ============================================
 // SHARED ERROR SCHEMAS
 // ============================================
@@ -205,13 +213,13 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/events',
-      input: insertEventSchema,
+      input: insertEventSchemaCoerced,
       responses: { 201: z.custom<typeof events.$inferSelect>() },
     },
     update: {
       method: 'PATCH' as const,
       path: '/api/events/:id',
-      input: insertEventSchema.partial(),
+      input: insertEventSchemaCoerced.partial(),
       responses: { 200: z.custom<typeof events.$inferSelect>() },
     },
     delete: {

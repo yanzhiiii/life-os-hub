@@ -92,7 +92,7 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes (January 2026)
 
 ### Frontend Pages Implemented
-- **Calendar Page** (`/calendar`) - Month view with event creation and deletion, date navigation, day status tracking (Working Day, Rest Day, Sick Leave, Annual Leave, Custom)
+- **Calendar Page** (`/calendar`) - Full month grid view with day cells showing work status, events, and status icons; event creation with date pre-population; day status tracking (Working Day, Standby, Rest Day, Sick Leave, Annual Leave, Custom); status legend
 - **Journal Page** (`/journal`) - Entry list with mood tracking (5 moods: happy, neutral, sad, excited, grateful), full CRUD
 - **Insights Page** (`/insights`) - Charts for spending by category, income vs expenses, productivity completion rates, cross-module insights (mood vs spending, mood vs productivity, life balance radar)
 - **Settings Page** (`/settings`) - Profile editing, currency selection, payday configuration, dark/light theme toggle with database persistence

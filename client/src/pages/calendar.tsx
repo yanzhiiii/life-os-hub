@@ -1,19 +1,19 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Shell } from "@/components/layout/Shell";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
 import { useEvents, useCreateEvent, useDeleteEvent } from "@/hooks/use-events";
 import { useDayStatuses, useUpsertDayStatus } from "@/hooks/use-day-statuses";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertEventSchema } from "@shared/schema";
 import { z } from "zod";
-import { Plus, Trash2, Clock, Briefcase, Coffee, Stethoscope, Palmtree, Tag, ChevronLeft, ChevronRight } from "lucide-react";
-import { format, isSameDay, addMonths, subMonths, differenceInDays, isFuture, isToday } from "date-fns";
+import { Plus, Trash2, Clock, Briefcase, Coffee, Stethoscope, Palmtree, Tag, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { format, isSameDay, addMonths, subMonths, differenceInDays, isFuture, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const eventSchema = insertEventSchema.extend({
@@ -40,6 +40,7 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [customLabel, setCustomLabel] = useState("");
+  const [eventStartTime, setEventStartTime] = useState("");
 
   const form = useForm<z.infer<typeof eventSchema>>({
     resolver: zodResolver(eventSchema),
@@ -100,6 +101,24 @@ export default function CalendarPage() {
     return isFuture(eventDate) || isToday(eventDate);
   }).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).slice(0, 5) || [];
 
+  const calendarDays = useMemo(() => {
+    const start = startOfMonth(currentMonth);
+    const end = endOfMonth(currentMonth);
+    return eachDayOfInterval({ start, end });
+  }, [currentMonth]);
+
+  const startPadding = getDay(startOfMonth(currentMonth));
+  const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const getEventsForDay = (day: Date) => {
+    return events?.filter(e => isSameDay(new Date(e.startTime), day)) || [];
+  };
+
+  const getStatusInfo = (status: string | undefined) => {
+    if (!status) return null;
+    return dayStatusOptions.find(o => o.value === status);
+  };
+
   return (
     <Shell>
       <div className="flex items-center justify-between mb-8">
@@ -107,7 +126,14 @@ export default function CalendarPage() {
           <h1 className="text-3xl font-display font-bold">Calendar</h1>
           <p className="text-muted-foreground">Plan your activities and track your days.</p>
         </div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (open) {
+            const defaultDateTime = format(selectedDate, "yyyy-MM-dd") + "T09:00";
+            setEventStartTime(defaultDateTime);
+            form.reset({ title: "", category: "general", notes: "" });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="rounded-xl px-6 bg-primary shadow-lg shadow-primary/25" data-testid="button-add-event">
               <Plus className="w-4 h-4 mr-2" /> Add Event
@@ -115,14 +141,33 @@ export default function CalendarPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Event</DialogTitle>
+              <DialogTitle>Create New Event for {format(selectedDate, "MMMM d, yyyy")}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = form.getValues();
+              if (!formData.title) return;
+              createEvent({
+                ...formData,
+                startTime: new Date(eventStartTime),
+              }, {
+                onSuccess: () => {
+                  setIsOpen(false);
+                  form.reset();
+                  setEventStartTime("");
+                }
+              });
+            }} className="space-y-4 mt-4">
               <Input placeholder="Event title" {...form.register("title")} data-testid="input-event-title" />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground mb-1 block">Start Time</label>
-                  <Input type="datetime-local" {...form.register("startTime")} data-testid="input-event-start" />
+                  <Input 
+                    type="datetime-local" 
+                    value={eventStartTime}
+                    onChange={(e) => setEventStartTime(e.target.value)}
+                    data-testid="input-event-start" 
+                  />
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground mb-1 block">End Time</label>
@@ -151,7 +196,7 @@ export default function CalendarPage() {
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <Card className="shadow-lg">
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               <div className="flex justify-between items-center mb-4">
                 <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} data-testid="button-prev-month">
                   <ChevronLeft className="w-5 h-5" />
@@ -161,30 +206,102 @@ export default function CalendarPage() {
                   <ChevronRight className="w-5 h-5" />
                 </Button>
               </div>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
-                month={currentMonth}
-                onMonthChange={setCurrentMonth}
-                className="rounded-md w-full"
-                modifiers={{
-                  hasEvents: (date) => !!daysWithEvents[format(date, "yyyy-MM-dd")],
-                  working: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "working",
-                  rest: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "rest",
-                  standby: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "standby",
-                  sick: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "sick_leave",
-                  annual: (date) => dayStatusMap[format(date, "yyyy-MM-dd")]?.status === "annual_leave",
-                }}
-                modifiersStyles={{
-                  hasEvents: { fontWeight: "bold", textDecoration: "underline" },
-                  working: { backgroundColor: "rgb(219 234 254)", borderRadius: "4px" },
-                  rest: { backgroundColor: "rgb(220 252 231)", borderRadius: "4px" },
-                  standby: { backgroundColor: "rgb(255 237 213)", borderRadius: "4px" },
-                  sick: { backgroundColor: "rgb(254 226 226)", borderRadius: "4px" },
-                  annual: { backgroundColor: "rgb(254 243 199)", borderRadius: "4px" },
-                }}
-              />
+              
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {WEEKDAYS.map(day => (
+                  <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+              
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: startPadding }).map((_, i) => (
+                  <div key={`pad-${i}`} className="h-28" />
+                ))}
+                {calendarDays.map(day => {
+                  const dateStr = format(day, "yyyy-MM-dd");
+                  const dayEvents = getEventsForDay(day);
+                  const dayStatus = dayStatusMap[dateStr];
+                  const statusInfo = getStatusInfo(dayStatus?.status);
+                  const StatusIcon = statusInfo?.icon;
+                  const isTodayDate = isToday(day);
+                  const isSelected = isSameDay(day, selectedDate);
+                  
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      onClick={() => setSelectedDate(day)}
+                      className={cn(
+                        "h-28 p-1.5 rounded-lg text-xs transition-all relative flex flex-col items-start border",
+                        isTodayDate && "ring-2 ring-primary ring-offset-1",
+                        isSelected && "bg-primary/10 border-primary",
+                        statusInfo && !isSelected && statusInfo.color,
+                        !isSelected && !statusInfo && "border-transparent hover:border-primary/30 hover:bg-secondary/30"
+                      )}
+                      data-testid={`calendar-day-${dateStr}`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className={cn(
+                          "font-semibold text-sm",
+                          isTodayDate && "text-primary"
+                        )}>{format(day, "d")}</span>
+                        {StatusIcon && (
+                          <StatusIcon className={cn("w-3 h-3", statusInfo.color.split(' ')[0])} />
+                        )}
+                      </div>
+                      
+                      {dayStatus?.status === "custom" && dayStatus.customLabel && (
+                        <div className="text-[9px] text-purple-600 font-medium truncate w-full mb-0.5">
+                          {dayStatus.customLabel}
+                        </div>
+                      )}
+                      
+                      <div className="flex flex-col gap-0.5 w-full flex-1 overflow-hidden">
+                        {dayEvents.slice(0, 3).map(event => {
+                          const categoryColors: Record<string, string> = {
+                            work: "bg-blue-500",
+                            personal: "bg-green-500",
+                            health: "bg-red-500",
+                            social: "bg-purple-500",
+                            general: "bg-gray-500",
+                          };
+                          return (
+                            <div 
+                              key={event.id} 
+                              className="flex items-center gap-1 px-1 py-0.5 rounded bg-secondary/70 truncate"
+                              title={`${event.title} - ${format(new Date(event.startTime), "h:mm a")}`}
+                            >
+                              <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", categoryColors[event.category || 'general'])} />
+                              <span className="truncate text-[10px]">{event.title}</span>
+                            </div>
+                          );
+                        })}
+                        {dayEvents.length > 3 && (
+                          <span className="text-[9px] text-muted-foreground">+{dayEvents.length - 3} more</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <div className="mt-4 pt-3 border-t">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Day Status Legend</p>
+                <div className="flex flex-wrap gap-3">
+                  {dayStatusOptions.filter(o => o.value !== "custom").map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <div key={option.value} className="flex items-center gap-1.5 text-xs">
+                        <div className={cn("w-4 h-4 rounded flex items-center justify-center", option.color)}>
+                          <Icon className="w-2.5 h-2.5" />
+                        </div>
+                        <span className="text-muted-foreground">{option.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
