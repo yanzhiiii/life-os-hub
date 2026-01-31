@@ -99,13 +99,22 @@ Preferred communication style: Simple, everyday language.
 
 ### Enhanced Modules
 - **Dashboard** - Dynamic salary countdown based on user's payday config, today's working status display, time-based greetings
-- **Productivity Page** - Complete Routines tab with step tracking and daily completion logging; Goals tab with milestone tracking and progress visualization
-- **Finance Page** - Calendar tab refactored to pure finance focus: recurring expense/income templates, payday highlighting, projected bills per day, pay period analytics (days remaining, spent this period, daily average), pay period comparison chart; Debts tab with "breaking chains" visualization; Savings tab with "filling jar" visualization; Spending by Category pie chart with legend showing percentages; Recurring Templates panel for managing monthly bills
+- **Productivity Page** - Complete Routines tab with step tracking and daily completion logging; Goals tab with milestone tracking and progress visualization; **NEW: Pomodoro Timer tab** with customizable work/break durations, visual circular progress, session tracking, and settings persistence
+- **Finance Page** - **Projected Balance Calendar** feature (inspired by AntiGastador): baseline balance input with localStorage persistence; enhanced recurring templates with 9 frequency patterns (once, daily, weekly, biweekly, semimonthly variants, monthly, every N days); projected balance displayed per day (color-coded green/red); Payout Period Statistics section with income/expense/net breakdown and pie charts per period; Debts tab with "breaking chains" visualization; Savings tab with "filling jar" visualization; Spending by Category pie chart with legend showing percentages
 - **Calendar Page** - Day status system (Working Day, Standby, Rest Day, Sick Leave, Annual Leave, Custom) with color-coded calendar indicators, upcoming events timeline with "X days to go" labels, planning ahead capability for future dates
 
 ### New Database Tables
 - `day_statuses` - Tracks working/rest/leave status per day with optional custom labels and colors
-- `recurring_templates` - Recurring expense/income templates with frequency patterns (monthly, by day of month), active status, and category
+- `recurring_templates` - Recurring expense/income templates with enhanced frequency patterns (once, daily, weekly, biweekly, semimonthly_1_15, semimonthly_5_20, semimonthly_15_eom, monthly, everyN), everyNDays field, note field, active status, and category
+
+### Pomodoro Timer Features
+- Customizable work duration (default 25 min), short break (5 min), long break (15 min)
+- Sessions before long break (default 4)
+- Visual circular progress indicator
+- Session tracking with statistics (sessions today, minutes focused, cycles completed)
+- Settings persistence in localStorage
+- Mode switching (Focus/Short Break/Long Break)
+- How-to-use guide
 
 ### New API Endpoints
 - `PATCH /api/user/settings` - Update user settings (displayName, currency, paydayConfig)

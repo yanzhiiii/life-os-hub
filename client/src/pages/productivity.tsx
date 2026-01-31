@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Shell } from "@/components/layout/Shell";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useTasks, useCreateTask, useDeleteTask, useUpdateTask } from "@/hooks/use-tasks";
 import { useRoutines, useCreateRoutine, useRoutineCompletions, useLogRoutineCompletion } from "@/hooks/use-routines";
 import { useGoals, useCreateGoal, useUpdateGoal, useDeleteGoal } from "@/hooks/use-goals";
@@ -15,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTaskSchema, insertRoutineSchema, insertGoalSchema } from "@shared/schema";
 import { z } from "zod";
-import { CheckCircle2, Circle, Plus, Trash2, CalendarIcon, Target, Flame, CheckSquare } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2, CalendarIcon, Target, Flame, CheckSquare, Timer, Play, Pause, RotateCcw, Coffee, Brain, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +57,9 @@ export default function Productivity() {
           <TabsTrigger value="goals" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-goals">
             <Target className="w-4 h-4 mr-2" />Goals
           </TabsTrigger>
+          <TabsTrigger value="pomodoro" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-pomodoro">
+            <Timer className="w-4 h-4 mr-2" />Pomodoro
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="tasks" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -68,6 +72,10 @@ export default function Productivity() {
 
         <TabsContent value="goals" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <GoalList />
+        </TabsContent>
+        
+        <TabsContent value="pomodoro" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <PomodoroTimer />
         </TabsContent>
       </Tabs>
     </Shell>
@@ -523,6 +531,337 @@ function GoalList() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+type PomodoroMode = 'work' | 'shortBreak' | 'longBreak';
+
+interface PomodoroSettings {
+  workDuration: number;
+  shortBreakDuration: number;
+  longBreakDuration: number;
+  sessionsBeforeLongBreak: number;
+}
+
+const DEFAULT_SETTINGS: PomodoroSettings = {
+  workDuration: 25,
+  shortBreakDuration: 5,
+  longBreakDuration: 15,
+  sessionsBeforeLongBreak: 4,
+};
+
+function PomodoroTimer() {
+  const [settings, setSettings] = useState<PomodoroSettings>(() => {
+    const saved = localStorage.getItem('pomodoro-settings');
+    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+  });
+  
+  const [mode, setMode] = useState<PomodoroMode>('work');
+  const [timeLeft, setTimeLeft] = useState(settings.workDuration * 60);
+  const [isRunning, setIsRunning] = useState(false);
+  const [sessionsCompleted, setSessionsCompleted] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [tempSettings, setTempSettings] = useState(settings);
+  
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const getDuration = useCallback((m: PomodoroMode) => {
+    switch (m) {
+      case 'work': return settings.workDuration * 60;
+      case 'shortBreak': return settings.shortBreakDuration * 60;
+      case 'longBreak': return settings.longBreakDuration * 60;
+    }
+  }, [settings]);
+  
+  useEffect(() => {
+    if (isRunning && timeLeft > 0) {
+      intervalRef.current = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+    } else if (timeLeft === 0) {
+      handleTimerComplete();
+    }
+    
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRunning, timeLeft]);
+  
+  const handleTimerComplete = () => {
+    setIsRunning(false);
+    
+    if (mode === 'work') {
+      const newSessions = sessionsCompleted + 1;
+      setSessionsCompleted(newSessions);
+      
+      if (newSessions % settings.sessionsBeforeLongBreak === 0) {
+        setMode('longBreak');
+        setTimeLeft(settings.longBreakDuration * 60);
+      } else {
+        setMode('shortBreak');
+        setTimeLeft(settings.shortBreakDuration * 60);
+      }
+    } else {
+      setMode('work');
+      setTimeLeft(settings.workDuration * 60);
+    }
+    
+    try {
+      new Audio('/notification.mp3').play().catch(() => {});
+    } catch {}
+  };
+  
+  const toggleTimer = () => setIsRunning(!isRunning);
+  
+  const resetTimer = () => {
+    setIsRunning(false);
+    setTimeLeft(getDuration(mode));
+  };
+  
+  const switchMode = (newMode: PomodoroMode) => {
+    setIsRunning(false);
+    setMode(newMode);
+    setTimeLeft(getDuration(newMode));
+  };
+  
+  const saveSettings = () => {
+    setSettings(tempSettings);
+    localStorage.setItem('pomodoro-settings', JSON.stringify(tempSettings));
+    setShowSettings(false);
+    setTimeLeft(tempSettings.workDuration * 60);
+    setMode('work');
+  };
+  
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  const progress = ((getDuration(mode) - timeLeft) / getDuration(mode)) * 100;
+  
+  const modeConfig = {
+    work: { label: 'Focus Time', icon: Brain, color: 'text-red-500', bg: 'bg-red-500', bgLight: 'bg-red-100 dark:bg-red-900/20' },
+    shortBreak: { label: 'Short Break', icon: Coffee, color: 'text-green-500', bg: 'bg-green-500', bgLight: 'bg-green-100 dark:bg-green-900/20' },
+    longBreak: { label: 'Long Break', icon: Coffee, color: 'text-blue-500', bg: 'bg-blue-500', bgLight: 'bg-blue-100 dark:bg-blue-900/20' },
+  };
+  
+  const CurrentIcon = modeConfig[mode].icon;
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-center">
+        <Card className="w-full max-w-md shadow-xl border-2">
+          <CardHeader className="text-center pb-4">
+            <div className="flex justify-between items-center">
+              <Badge variant="secondary" className={cn("gap-1", modeConfig[mode].bgLight)}>
+                <CurrentIcon className={cn("w-3 h-3", modeConfig[mode].color)} />
+                {modeConfig[mode].label}
+              </Badge>
+              <Dialog open={showSettings} onOpenChange={setShowSettings}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" data-testid="button-pomodoro-settings">
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Timer Settings</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground">Work (minutes)</label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          max={60}
+                          value={tempSettings.workDuration} 
+                          onChange={(e) => setTempSettings({...tempSettings, workDuration: parseInt(e.target.value) || 25})}
+                          data-testid="input-work-duration"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground">Short Break (min)</label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          max={30}
+                          value={tempSettings.shortBreakDuration} 
+                          onChange={(e) => setTempSettings({...tempSettings, shortBreakDuration: parseInt(e.target.value) || 5})}
+                          data-testid="input-short-break"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground">Long Break (min)</label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          max={60}
+                          value={tempSettings.longBreakDuration} 
+                          onChange={(e) => setTempSettings({...tempSettings, longBreakDuration: parseInt(e.target.value) || 15})}
+                          data-testid="input-long-break"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground">Sessions before long break</label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          max={10}
+                          value={tempSettings.sessionsBeforeLongBreak} 
+                          onChange={(e) => setTempSettings({...tempSettings, sessionsBeforeLongBreak: parseInt(e.target.value) || 4})}
+                          data-testid="input-sessions"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-4">
+                      <Button variant="outline" onClick={() => setShowSettings(false)} className="flex-1">Cancel</Button>
+                      <Button onClick={saveSettings} className="flex-1" data-testid="button-save-settings">Save</Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <CardTitle className="text-lg mt-2">Pomodoro Timer</CardTitle>
+            <CardDescription>Stay focused, take breaks</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex justify-center gap-2">
+              {(['work', 'shortBreak', 'longBreak'] as PomodoroMode[]).map((m) => (
+                <Button
+                  key={m}
+                  variant={mode === m ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => switchMode(m)}
+                  className="text-xs"
+                  data-testid={`button-mode-${m}`}
+                >
+                  {m === 'work' ? 'Focus' : m === 'shortBreak' ? 'Short' : 'Long'}
+                </Button>
+              ))}
+            </div>
+            
+            <div className="relative flex items-center justify-center">
+              <div className="relative w-48 h-48">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    strokeWidth="8"
+                    className="stroke-secondary"
+                  />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 45}`}
+                    strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress / 100)}`}
+                    className={cn("transition-all duration-1000", modeConfig[mode].color.replace('text-', 'stroke-'))}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-4xl font-bold font-mono" data-testid="timer-display">
+                    {formatTime(timeLeft)}
+                  </span>
+                  <span className="text-xs text-muted-foreground mt-1">
+                    Session {sessionsCompleted + 1}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={resetTimer}
+                data-testid="button-reset-timer"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+              <Button
+                size="lg"
+                className={cn("px-8 gap-2", isRunning ? "bg-orange-500 hover:bg-orange-600" : "")}
+                onClick={toggleTimer}
+                data-testid="button-toggle-timer"
+              >
+                {isRunning ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    Pause
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Start
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            <div className="flex justify-center">
+              <div className="flex gap-1.5">
+                {Array.from({ length: settings.sessionsBeforeLongBreak }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "w-3 h-3 rounded-full transition-colors",
+                      i < (sessionsCompleted % settings.sessionsBeforeLongBreak) 
+                        ? modeConfig.work.bg 
+                        : "bg-secondary"
+                    )}
+                    data-testid={`session-indicator-${i}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <div className="grid md:grid-cols-3 gap-4">
+        <Card className="text-center">
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-primary">{sessionsCompleted}</div>
+            <p className="text-sm text-muted-foreground mt-1">Sessions Today</p>
+          </CardContent>
+        </Card>
+        <Card className="text-center">
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-green-600">{sessionsCompleted * settings.workDuration}</div>
+            <p className="text-sm text-muted-foreground mt-1">Minutes Focused</p>
+          </CardContent>
+        </Card>
+        <Card className="text-center">
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-blue-600">{Math.floor(sessionsCompleted / settings.sessionsBeforeLongBreak)}</div>
+            <p className="text-sm text-muted-foreground mt-1">Cycles Completed</p>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">How to Use the Pomodoro Technique</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+            <li>Choose a task to work on</li>
+            <li>Start the {settings.workDuration}-minute Focus timer</li>
+            <li>Work on the task until the timer rings</li>
+            <li>Take a {settings.shortBreakDuration}-minute Short Break</li>
+            <li>After {settings.sessionsBeforeLongBreak} sessions, take a {settings.longBreakDuration}-minute Long Break</li>
+            <li>Repeat the cycle!</li>
+          </ol>
+        </CardContent>
+      </Card>
     </div>
   );
 }
