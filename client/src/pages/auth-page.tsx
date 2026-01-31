@@ -181,9 +181,6 @@ export default function AuthPage() {
             </Tabs>
           </CardContent>
         </Card>
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          © 2026 Edric Kristian L. Gantes. All rights reserved.
-        </p>
       </div>
     </div>
   );
