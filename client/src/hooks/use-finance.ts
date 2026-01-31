@@ -58,6 +58,20 @@ export function useCreateDebt() {
   });
 }
 
+export function useDeleteDebt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/debts/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete debt");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.debts.list.path] }),
+  });
+}
+
 export function useSavingsGoals() {
   return useQuery({
     queryKey: [api.savings.list.path],
@@ -81,6 +95,20 @@ export function useCreateSavingsGoal() {
       });
       if (!res.ok) throw new Error("Failed to create savings goal");
       return api.savings.create.responses[201].parse(await res.json());
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.savings.list.path] }),
+  });
+}
+
+export function useDeleteSavingsGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/savings/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete savings goal");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.savings.list.path] }),
   });

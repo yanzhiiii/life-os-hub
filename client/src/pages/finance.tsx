@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { useTransactions, useCreateTransaction, useDebts, useCreateDebt, useSavingsGoals, useCreateSavingsGoal } from "@/hooks/use-finance";
+import { useTransactions, useCreateTransaction, useDebts, useCreateDebt, useDeleteDebt, useSavingsGoals, useCreateSavingsGoal, useDeleteSavingsGoal } from "@/hooks/use-finance";
 import { useRecurringTemplates, useCreateRecurringTemplate, useDeleteRecurringTemplate } from "@/hooks/use-recurring-templates";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -327,6 +327,7 @@ function DebtsView() {
   const { data: debts } = useDebts();
   const { data: user } = useUser();
   const { mutate: createDebt } = useCreateDebt();
+  const { mutate: deleteDebt } = useDeleteDebt();
   const [isOpen, setIsOpen] = useState(false);
   const currency = user?.currency || "PHP";
 
@@ -433,7 +434,17 @@ function DebtsView() {
                     </div>
                     <CardTitle className="text-lg">{debt.name}</CardTitle>
                   </div>
-                  <span className="text-sm font-bold text-green-600">{progress.toFixed(0)}%</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-green-600">{progress.toFixed(0)}%</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteDebt(debt.id)}
+                      data-testid={`button-delete-debt-${debt.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -485,6 +496,7 @@ function SavingsView() {
   const { data: savings } = useSavingsGoals();
   const { data: user } = useUser();
   const { mutate: createSavings } = useCreateSavingsGoal();
+  const { mutate: deleteSavings } = useDeleteSavingsGoal();
   const [isOpen, setIsOpen] = useState(false);
   const currency = user?.currency || "PHP";
 
@@ -566,7 +578,17 @@ function SavingsView() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{goal.name}</CardTitle>
-                  <span className="text-sm font-bold text-green-600">{progress.toFixed(0)}%</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-green-600">{progress.toFixed(0)}%</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteSavings(goal.id)}
+                      data-testid={`button-delete-savings-${goal.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
