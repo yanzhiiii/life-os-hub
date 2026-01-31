@@ -1,0 +1,87 @@
+Build an “All-in-One Life OS” web app (productivity + finance + journaling) with multi-user accounts and private data per user.
+
+Tech / constraints:
+- Use Next.js (App Router) with a clean, minimal UI (responsive, calm, modern).
+- Implement email/password authentication and ensure data privacy per user (each user only sees their own data).
+- Keep the implementation as simple as possible: prioritize a working MVP over perfection.
+- If full cloud auth/DB is too heavy, still scaffold the structure and use a temporary in-app storage layer (in-memory or localStorage) with clearly marked TODOs to swap to a real DB later.
+
+Core navigation (top or side nav):
+- Dashboard
+- Productivity
+- Calendar (Plans)
+- Finance
+- Journal
+- Insights
+- Settings
+
+1) Dashboard (Command Center)
+Show cards/widgets:
+- Live current time
+- Weather widget (can start as placeholder; add real API integration if easy)
+- Countdown to next salary payout (user can set payout schedule in Settings: fixed dates like 15/30 or custom payday)
+- Today’s routines (checklist)
+- Tasks due today
+- Quick finance snapshot (current balance + projected end-of-month)
+
+2) Productivity module
+A) Routines
+- Users can create routine templates (e.g., “Morning routine”) with checklist steps.
+- Users can mark steps done for today.
+- Show streaks and completion rate.
+
+B) Tasks & Goals
+- Tasks: title, due date, priority, status, tags
+- Goals: title, target date, checklist/milestones
+- Link tasks to goals optionally
+- Simple “Today / Upcoming / Completed” views
+
+3) Plans Calendar (Future Activities)
+- A calendar page for events/activities (not finance).
+- Users can add events with title, date/time, category, notes, reminders (basic).
+- Month view is enough; weekly/day view optional if easy.
+
+4) Finance module (AntiGastador-style)
+A) Transactions + Calendar
+- Add income/expense entries with: type, amount, date, category, note
+- Support recurring transactions (once, daily, weekly, monthly, every N days)
+- Calendar view shows daily totals and a running projected balance
+- Allow setting a starting balance for a month
+- Allow “Actual balance override” per day (if set, projections after that recalc from reality)
+- Month summary: income, expenses, projected end balance
+- Expense breakdown by category (simple chart)
+
+B) Debt tracker (cool visual)
+- Users can add debts: name, total, remaining, due date, interest optional
+- Users can record payments and reduce remaining balance
+- Use a motivating visual metaphor (choose one):
+  - “Melting Ice Block” (debt melts as you pay)
+  - or “Breaking Chains” (links break per payment)
+Implement it as a progress visualization (simple CSS/animation is fine, doesn’t need to be fancy).
+
+C) Savings goals (jar UI)
+- Users can create savings goals: name, target amount, current saved
+- Add deposits to increase saved amount
+- Show a jar/bottle progress visualization that fills up as savings increase
+
+5) Journal module
+- Daily journal entries: date, text, optional mood
+- Archive view: browse by calendar or list, with search
+
+6) Insights (Statistics)
+Provide simple visual stats (charts can be basic):
+- Finance: spending by category, income vs expense trend, savings progress, debt payoff progress
+- Productivity: tasks completed per week, routine streaks, goal progress
+Keep it lightweight and avoid overengineering.
+
+7) Settings
+- User profile
+- Payday configuration (for countdown)
+- Currency (default PHP)
+- Theme (light/dark)
+
+Deliverables:
+- A running app with the above pages and basic CRUD for each module.
+- Clear data models (even if stored temporarily).
+- Comments/TODOs where you simplify or defer hard parts.
+- Make sure the UX is smooth: quick add buttons, empty states, and consistent components.
