@@ -39,6 +39,10 @@ const insertTransactionSchemaCoerced = insertTransactionSchema.extend({
   date: z.coerce.date(),
 });
 
+const insertDebtSchemaCoerced = insertDebtSchema.extend({
+  dueDate: z.coerce.date(),
+});
+
 // ============================================
 // SHARED ERROR SCHEMAS
 // ============================================
@@ -288,13 +292,13 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/debts',
-      input: insertDebtSchema,
+      input: insertDebtSchemaCoerced,
       responses: { 201: z.custom<typeof debts.$inferSelect>() },
     },
     update: {
       method: 'PATCH' as const,
       path: '/api/debts/:id',
-      input: insertDebtSchema.partial(),
+      input: insertDebtSchemaCoerced.partial(),
       responses: { 200: z.custom<typeof debts.$inferSelect>() },
     },
     delete: {
