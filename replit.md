@@ -92,22 +92,43 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes (January 2026)
 
 ### Frontend Pages Implemented
-- **Calendar Page** (`/calendar`) - Month view with event creation and deletion, date navigation
+- **Calendar Page** (`/calendar`) - Month view with event creation and deletion, date navigation, day status tracking (Working Day, Rest Day, Sick Leave, Annual Leave, Custom)
 - **Journal Page** (`/journal`) - Entry list with mood tracking (5 moods: happy, neutral, sad, excited, grateful), full CRUD
-- **Insights Page** (`/insights`) - Charts for spending by category, income vs expenses, productivity completion rates
-- **Settings Page** (`/settings`) - Profile editing, currency selection, payday configuration, dark/light theme toggle
+- **Insights Page** (`/insights`) - Charts for spending by category, income vs expenses, productivity completion rates, cross-module insights (mood vs spending, mood vs productivity, life balance radar)
+- **Settings Page** (`/settings`) - Profile editing, currency selection, payday configuration, dark/light theme toggle with database persistence
 
 ### Enhanced Modules
+- **Dashboard** - Dynamic salary countdown based on user's payday config, today's working status display, time-based greetings
 - **Productivity Page** - Complete Routines tab with step tracking and daily completion logging; Goals tab with milestone tracking and progress visualization
-- **Finance Page** - Debts tab with "breaking chains" visualization (5 links showing payoff progress); Savings tab with "filling jar" visualization
+- **Finance Page** - Calendar tab with daily income/expense grid, pay period analytics (days remaining, spent this period, daily average), pay period comparison chart; Debts tab with "breaking chains" visualization; Savings tab with "filling jar" visualization
+- **Calendar Page** - Day status system (Working Day, Rest Day, Sick Leave, Annual Leave), upcoming events timeline with "X days to go" labels
+
+### New Database Tables
+- `day_statuses` - Tracks working/rest/leave status per day with optional custom labels and colors
+
+### New API Endpoints
+- `PATCH /api/user/settings` - Update user settings (displayName, currency, paydayConfig)
+- `GET/PUT /api/day-statuses/:date` - Get/upsert day status for a specific date
+- `GET /api/day-statuses` - List all day statuses for current user
 
 ### New Hooks
 - `use-events.ts` - Calendar event CRUD operations
 - `use-goals.ts` - Goal and milestone management
+- `use-day-statuses.ts` - Day status CRUD operations
+- `use-user-settings.ts` - User settings persistence
 - Extended routines hook with completion tracking
+
+### Cross-Module Insights
+- Average mood score card with trend indicator
+- Mood vs Spending correlation chart
+- Mood vs Productivity correlation chart
+- Life Balance radar chart (finances, tasks, goals, routines, mood, savings)
+- Weekly mood trend line chart
 
 ### Design Patterns
 - All navigation links use `data-testid="nav-{page}"` format
 - Tab triggers use `data-testid="tab-{tabname}"` format
 - Theme toggle persists to localStorage
 - Routine steps and goal milestones entered as newline-separated text, transformed to arrays on submit
+- Currency formatting uses user's selected currency (PHP, USD, EUR, GBP, JPY)
+- Day status buttons use `data-testid="button-status-{type}"` format

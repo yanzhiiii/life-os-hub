@@ -8,12 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useTransactions, useCreateTransaction, useDebts, useCreateDebt, useSavingsGoals, useCreateSavingsGoal } from "@/hooks/use-finance";
+import { useUser } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTransactionSchema, insertDebtSchema, insertSavingsGoalSchema } from "@shared/schema";
 import { z } from "zod";
-import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2 } from "lucide-react";
-import { format } from "date-fns";
+import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3 } from "lucide-react";
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, parseISO, setDate, isAfter, isBefore, differenceInDays, addDays } from "date-fns";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer as ReBarContainer, Tooltip as ReBarTooltip, Legend } from "recharts";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -45,9 +47,12 @@ export default function Finance() {
       </div>
 
       <Tabs defaultValue="transactions" className="space-y-6">
-        <TabsList className="bg-secondary/50 p-1 rounded-xl">
+        <TabsList className="bg-secondary/50 p-1 rounded-xl flex-wrap">
           <TabsTrigger value="transactions" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-transactions">
             <Wallet className="w-4 h-4 mr-2" />Transactions
+          </TabsTrigger>
+          <TabsTrigger value="calendar" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-finance-calendar">
+            <CalendarDays className="w-4 h-4 mr-2" />Calendar
           </TabsTrigger>
           <TabsTrigger value="debts" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-debts">
             <Link2 className="w-4 h-4 mr-2" />Debts
@@ -59,6 +64,10 @@ export default function Finance() {
 
         <TabsContent value="transactions" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <TransactionsView />
+        </TabsContent>
+
+        <TabsContent value="calendar" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <FinanceCalendarView />
         </TabsContent>
 
         <TabsContent value="debts" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -547,6 +556,468 @@ function SavingsView() {
             No savings goals yet. Start saving for something special!
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+const formatCurrency = (amount: number, currency: string = "PHP") => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+function FinanceCalendarView() {
+  const { data: transactions } = useTransactions();
+  const { data: user } = useUser();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  
+  const currency = user?.currency || "PHP";
+  const rawPaydayDates = user?.paydayConfig?.dates || [15, 30];
+  const paydayDates = [...new Set(rawPaydayDates)].filter(d => d >= 1 && d <= 31).sort((a, b) => a - b);
+  
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  
+  const startPadding = monthStart.getDay();
+  
+  const getTransactionsForDay = (day: Date) => {
+    if (!transactions) return [];
+    const dayStr = format(day, "yyyy-MM-dd");
+    return transactions.filter(t => {
+      const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+      return format(txDate, "yyyy-MM-dd") === dayStr;
+    });
+  };
+  
+  const getDaySummary = (day: Date) => {
+    const dayTransactions = getTransactionsForDay(day);
+    const income = dayTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+    const expense = dayTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+    return { income, expense, net: income - expense, transactions: dayTransactions };
+  };
+  
+  const monthIncome = transactions?.filter(t => {
+    const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+    return isSameMonth(txDate, currentMonth) && t.type === 'income';
+  }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+  
+  const monthExpense = transactions?.filter(t => {
+    const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+    return isSameMonth(txDate, currentMonth) && t.type === 'expense';
+  }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+  
+  const getPayPeriods = () => {
+    if (paydayDates.length === 0) return [];
+    
+    const sortedDates = [...paydayDates].sort((a, b) => a - b);
+    const periods: { name: string; startDate: Date; endDate: Date; income: number; expense: number }[] = [];
+    
+    const clampDay = (month: Date, day: number) => {
+      const maxDay = endOfMonth(month).getDate();
+      return Math.min(day, maxDay);
+    };
+    
+    for (let i = 0; i < sortedDates.length; i++) {
+      const payday = clampDay(currentMonth, sortedDates[i]);
+      const nextIdx = (i + 1) % sortedDates.length;
+      const isLastPeriod = i === sortedDates.length - 1;
+      const nextMonth = isLastPeriod ? addMonths(currentMonth, 1) : currentMonth;
+      const nextPaydayClamped = clampDay(nextMonth, sortedDates[nextIdx]);
+      
+      let periodStart = setDate(currentMonth, payday);
+      let periodEnd: Date;
+      
+      if (isLastPeriod) {
+        periodEnd = addDays(setDate(nextMonth, nextPaydayClamped), -1);
+      } else {
+        periodEnd = addDays(setDate(currentMonth, nextPaydayClamped), -1);
+      }
+      
+      if (isBefore(periodEnd, periodStart) || isSameDay(periodEnd, periodStart)) {
+        continue;
+      }
+      
+      if (!isSameMonth(periodStart, currentMonth) && !isSameMonth(periodEnd, currentMonth)) {
+        continue;
+      }
+      
+      const periodTransactions = transactions?.filter(t => {
+        const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+        return !isBefore(txDate, periodStart) && !isAfter(txDate, periodEnd);
+      }) || [];
+      
+      const income = periodTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+      const expense = periodTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+      
+      periods.push({
+        name: `${format(periodStart, "MMM d")} - ${format(periodEnd, "MMM d")}`,
+        startDate: periodStart,
+        endDate: periodEnd,
+        income,
+        expense
+      });
+    }
+    
+    return periods;
+  };
+  
+  const payPeriods = getPayPeriods();
+  
+  const getCurrentPayPeriod = () => {
+    const today = new Date();
+    if (paydayDates.length === 0) return null;
+    
+    const sortedDates = [...paydayDates].sort((a, b) => a - b);
+    
+    for (let i = sortedDates.length - 1; i >= 0; i--) {
+      const payday = setDate(today, Math.min(sortedDates[i], endOfMonth(today).getDate()));
+      if (!isAfter(payday, today)) {
+        const nextIdx = (i + 1) % sortedDates.length;
+        const nextMonth = i === sortedDates.length - 1 ? addMonths(today, 1) : today;
+        const nextPayday = setDate(nextMonth, Math.min(sortedDates[nextIdx], endOfMonth(nextMonth).getDate()));
+        
+        const daysInPeriod = Math.max(1, differenceInDays(nextPayday, payday));
+        const daysPassed = differenceInDays(today, payday);
+        const daysRemaining = differenceInDays(nextPayday, today);
+        
+        const periodTransactions = transactions?.filter(t => {
+          const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+          return !isBefore(txDate, payday) && !isAfter(txDate, today);
+        }) || [];
+        
+        const spent = periodTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+        
+        return {
+          startDate: payday,
+          endDate: nextPayday,
+          daysInPeriod,
+          daysPassed,
+          daysRemaining,
+          spent
+        };
+      }
+    }
+    
+    const lastPaydayDate = sortedDates[sortedDates.length - 1];
+    const prevMonth = subMonths(today, 1);
+    const payday = setDate(prevMonth, Math.min(lastPaydayDate, endOfMonth(prevMonth).getDate()));
+    const nextPayday = setDate(today, Math.min(sortedDates[0], endOfMonth(today).getDate()));
+    
+    const daysInPeriod = Math.max(1, differenceInDays(nextPayday, payday));
+    const daysPassed = differenceInDays(today, payday);
+    const daysRemaining = differenceInDays(nextPayday, today);
+    
+    const periodTransactions = transactions?.filter(t => {
+      const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+      return !isBefore(txDate, payday) && !isAfter(txDate, today);
+    }) || [];
+    
+    const spent = periodTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+    
+    return {
+      startDate: payday,
+      endDate: nextPayday,
+      daysInPeriod,
+      daysPassed,
+      daysRemaining,
+      spent
+    };
+  };
+  
+  const currentPeriod = getCurrentPayPeriod();
+  
+  return (
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-3 gap-6">
+        <Card className="bg-gradient-to-br from-green-500 to-emerald-600 text-white border-none shadow-xl">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-white/80 font-medium">Monthly Income</p>
+                <h3 className="text-3xl font-bold mt-2">{formatCurrency(monthIncome, currency)}</h3>
+              </div>
+              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                <TrendingUp className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-red-500 to-pink-600 text-white border-none shadow-xl">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-white/80 font-medium">Monthly Expenses</p>
+                <h3 className="text-3xl font-bold mt-2">{formatCurrency(monthExpense, currency)}</h3>
+              </div>
+              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                <TrendingDown className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-none shadow-xl">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-white/80 font-medium">Net Balance</p>
+                <h3 className="text-3xl font-bold mt-2">{formatCurrency(monthIncome - monthExpense, currency)}</h3>
+              </div>
+              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                <Wallet className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {currentPeriod && (
+        <Card className="shadow-md" data-testid="card-pay-period">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <DollarSign className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle>Current Pay Period</CardTitle>
+                <CardDescription>
+                  {format(currentPeriod.startDate, "MMM d")} - {format(currentPeriod.endDate, "MMM d, yyyy")}
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-secondary/50 rounded-xl">
+                <p className="text-xs text-muted-foreground mb-1">Days Passed</p>
+                <p className="text-2xl font-bold">{currentPeriod.daysPassed}</p>
+                <p className="text-xs text-muted-foreground">of {currentPeriod.daysInPeriod}</p>
+              </div>
+              <div className="text-center p-4 bg-secondary/50 rounded-xl">
+                <p className="text-xs text-muted-foreground mb-1">Days Remaining</p>
+                <p className="text-2xl font-bold text-primary">{currentPeriod.daysRemaining}</p>
+                <p className="text-xs text-muted-foreground">until payday</p>
+              </div>
+              <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                <p className="text-xs text-muted-foreground mb-1">Spent This Period</p>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(currentPeriod.spent, currency)}</p>
+                <p className="text-xs text-muted-foreground">total expenses</p>
+              </div>
+              <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                <p className="text-xs text-muted-foreground mb-1">Daily Average</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(currentPeriod.daysPassed > 0 ? currentPeriod.spent / currentPeriod.daysPassed : 0, currency)}
+                </p>
+                <p className="text-xs text-muted-foreground">per day</p>
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-muted-foreground">Period Progress</span>
+                <span className="font-medium">{Math.round((currentPeriod.daysPassed / currentPeriod.daysInPeriod) * 100)}%</span>
+              </div>
+              <div className="h-3 w-full bg-secondary rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all"
+                  style={{ width: `${(currentPeriod.daysPassed / currentPeriod.daysInPeriod) * 100}%` }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {payPeriods.length > 0 && (
+        <Card className="shadow-md" data-testid="card-pay-period-chart">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <BarChart3 className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle>Pay Period Comparison</CardTitle>
+                <CardDescription>Income vs Expenses by pay period</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="h-[250px]">
+            <ReBarContainer width="100%" height="100%">
+              <BarChart data={payPeriods}>
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <ReBarTooltip 
+                  formatter={(value: number) => formatCurrency(value, currency)}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                />
+                <Legend />
+                <Bar dataKey="income" name="Income" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" name="Expenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ReBarContainer>
+          </CardContent>
+        </Card>
+      )}
+      
+      <div className="grid lg:grid-cols-3 gap-8">
+        <Card className="lg:col-span-2 shadow-md">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>{format(currentMonth, "MMMM yyyy")}</CardTitle>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                  data-testid="button-prev-month"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                  data-testid="button-next-month"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+                  {day}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: startPadding }).map((_, i) => (
+                <div key={`pad-${i}`} className="aspect-square" />
+              ))}
+              {calendarDays.map(day => {
+                const summary = getDaySummary(day);
+                const isToday = isSameDay(day, new Date());
+                const isSelected = selectedDate && isSameDay(day, selectedDate);
+                const hasTransactions = summary.transactions.length > 0;
+                
+                return (
+                  <button
+                    key={day.toISOString()}
+                    onClick={() => setSelectedDate(day)}
+                    className={cn(
+                      "aspect-square p-1 rounded-lg text-sm transition-all relative flex flex-col items-center justify-start",
+                      isToday && "ring-2 ring-primary",
+                      isSelected && "bg-primary text-primary-foreground",
+                      !isSelected && "hover:bg-secondary/50"
+                    )}
+                    data-testid={`finance-day-${format(day, "yyyy-MM-dd")}`}
+                  >
+                    <span className="font-medium">{format(day, "d")}</span>
+                    {hasTransactions && (
+                      <div className="flex flex-col items-center gap-0.5 text-[10px] mt-0.5">
+                        {summary.income > 0 && (
+                          <span className={cn(
+                            "text-green-600",
+                            isSelected && "text-green-200"
+                          )}>
+                            +{summary.income >= 1000 ? `${(summary.income/1000).toFixed(0)}k` : summary.income}
+                          </span>
+                        )}
+                        {summary.expense > 0 && (
+                          <span className={cn(
+                            "text-red-600",
+                            isSelected && "text-red-200"
+                          )}>
+                            -{summary.expense >= 1000 ? `${(summary.expense/1000).toFixed(0)}k` : summary.expense}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle>
+              {selectedDate ? format(selectedDate, "MMMM d, yyyy") : "Select a Date"}
+            </CardTitle>
+            <CardDescription>
+              {selectedDate ? "Transactions for this day" : "Click on a day to see details"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {selectedDate ? (
+              <div className="space-y-4">
+                {(() => {
+                  const summary = getDaySummary(selectedDate);
+                  return (
+                    <>
+                      <div className="grid grid-cols-2 gap-4 pb-4 border-b">
+                        <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Income</p>
+                          <p className="text-lg font-bold text-green-600">{formatCurrency(summary.income, currency)}</p>
+                        </div>
+                        <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <p className="text-xs text-muted-foreground">Expenses</p>
+                          <p className="text-lg font-bold text-red-600">{formatCurrency(summary.expense, currency)}</p>
+                        </div>
+                      </div>
+                      
+                      {summary.transactions.length > 0 ? (
+                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                          {summary.transactions.map(t => (
+                            <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30" data-testid={`finance-tx-${t.id}`}>
+                              <div className="flex items-center gap-3">
+                                <div className={cn(
+                                  "p-2 rounded-lg",
+                                  t.type === 'income' ? "bg-green-100 text-green-600 dark:bg-green-900/30" : "bg-red-100 text-red-600 dark:bg-red-900/30"
+                                )}>
+                                  {t.type === 'income' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-sm">{t.category}</p>
+                                  {t.note && <p className="text-xs text-muted-foreground">{t.note}</p>}
+                                </div>
+                              </div>
+                              <span className={cn(
+                                "font-bold",
+                                t.type === 'income' ? "text-green-600" : "text-red-600"
+                              )}>
+                                {t.type === 'income' ? '+' : '-'}{formatCurrency(Number(t.amount), currency)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          No transactions for this day
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <CalendarDays className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>Select a date to view transactions</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

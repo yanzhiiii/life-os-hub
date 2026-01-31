@@ -4,15 +4,42 @@ import { useTasks } from "@/hooks/use-tasks";
 import { useTransactions, useDebts, useSavingsGoals } from "@/hooks/use-finance";
 import { useGoals } from "@/hooks/use-goals";
 import { useRoutines, useRoutineCompletions } from "@/hooks/use-routines";
-import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval } from "date-fns";
+import { useJournalEntries } from "@/hooks/use-journal";
+import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, parseISO, isSameDay } from "date-fns";
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  LineChart, Line, AreaChart, Area
+  LineChart, Line, AreaChart, Area, Legend,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from "recharts";
-import { TrendingUp, Target, CheckCircle2, PiggyBank, CreditCard, Flame } from "lucide-react";
+import { TrendingUp, Target, CheckCircle2, PiggyBank, CreditCard, Flame, Smile, Frown, Brain, Zap } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
+const moodValues: Record<string, number> = {
+  happy: 5,
+  excited: 5,
+  grateful: 4,
+  neutral: 3,
+  sad: 1,
+};
+
+const moodLabels: Record<string, string> = {
+  happy: "Happy",
+  excited: "Excited",
+  grateful: "Grateful",
+  neutral: "Neutral",
+  sad: "Sad",
+};
+
+const moodColors: Record<string, string> = {
+  happy: "#22c55e",
+  excited: "#f59e0b",
+  grateful: "#8b5cf6",
+  neutral: "#6b7280",
+  sad: "#ef4444",
+};
 
 export default function InsightsPage() {
   const { data: tasks } = useTasks();
@@ -21,6 +48,7 @@ export default function InsightsPage() {
   const { data: savings } = useSavingsGoals();
   const { data: goals } = useGoals();
   const { data: routines } = useRoutines();
+  const { data: journalEntries } = useJournalEntries();
 
   // Finance Stats
   const totalIncome = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
@@ -58,24 +86,156 @@ export default function InsightsPage() {
   const completedGoals = goals?.filter(g => g.completed).length || 0;
   const activeGoals = goals?.filter(g => !g.completed).length || 0;
 
-  // Weekly task data (mock for visualization)
+  // Weekly task data
   const weekDays = eachDayOfInterval({
     start: startOfWeek(new Date()),
     end: endOfWeek(new Date())
   });
   
-  const weeklyTaskData = weekDays.map((day, i) => ({
-    name: format(day, "EEE"),
-    completed: Math.floor(Math.random() * 5) + 1,
-    total: Math.floor(Math.random() * 3) + 3 + i,
+  const weeklyTaskData = weekDays.map((day) => {
+    const dayStr = format(day, "yyyy-MM-dd");
+    const dayTasks = tasks?.filter(t => {
+      if (!t.dueDate) return false;
+      const taskDate = typeof t.dueDate === 'string' ? parseISO(t.dueDate) : new Date(t.dueDate);
+      return format(taskDate, "yyyy-MM-dd") === dayStr;
+    }) || [];
+    
+    return {
+      name: format(day, "EEE"),
+      completed: dayTasks.filter(t => t.status === 'done').length,
+      total: dayTasks.length,
+    };
+  });
+
+  // Income vs Expense trend (using real transaction data)
+  const trendData = Array.from({ length: 6 }, (_, i) => {
+    const monthDate = subDays(new Date(), (5 - i) * 30);
+    const monthTransactions = transactions?.filter(t => {
+      const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+      return format(txDate, "MMM yyyy") === format(monthDate, "MMM yyyy");
+    }) || [];
+    
+    return {
+      month: format(monthDate, "MMM"),
+      income: monthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0),
+      expense: monthTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0),
+    };
+  });
+
+  // Mood Distribution
+  const moodDistribution = journalEntries?.reduce((acc, entry) => {
+    const mood = entry.mood || 'neutral';
+    acc[mood] = (acc[mood] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>) || {};
+
+  const moodDistributionData = Object.entries(moodDistribution).map(([mood, count]) => ({
+    name: moodLabels[mood] || mood,
+    value: count,
+    color: moodColors[mood] || "#6b7280",
   }));
 
-  // Income vs Expense trend (mock)
-  const trendData = Array.from({ length: 6 }, (_, i) => ({
-    month: format(subDays(new Date(), (5 - i) * 30), "MMM"),
-    income: 40000 + Math.random() * 20000,
-    expense: 20000 + Math.random() * 15000,
-  }));
+  // Mood vs Spending Correlation
+  const getMoodSpendingData = () => {
+    if (!journalEntries || !transactions) return [];
+    
+    const moodSpending: Record<string, { total: number; count: number }> = {};
+    
+    journalEntries.forEach(entry => {
+      const entryDate = typeof entry.date === 'string' ? parseISO(entry.date) : new Date(entry.date);
+      const mood = entry.mood || 'neutral';
+      
+      const dayTransactions = transactions.filter(t => {
+        const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+        return isSameDay(txDate, entryDate) && t.type === 'expense';
+      });
+      
+      const daySpending = dayTransactions.reduce((acc, t) => acc + Number(t.amount), 0);
+      
+      if (!moodSpending[mood]) {
+        moodSpending[mood] = { total: 0, count: 0 };
+      }
+      moodSpending[mood].total += daySpending;
+      moodSpending[mood].count += 1;
+    });
+    
+    return Object.entries(moodSpending).map(([mood, data]) => ({
+      mood: moodLabels[mood] || mood,
+      avgSpending: data.count > 0 ? Math.round(data.total / data.count) : 0,
+      color: moodColors[mood] || "#6b7280",
+    })).sort((a, b) => moodValues[Object.keys(moodLabels).find(k => moodLabels[k] === a.mood) || 'neutral'] - 
+                       moodValues[Object.keys(moodLabels).find(k => moodLabels[k] === b.mood) || 'neutral']);
+  };
+
+  const moodSpendingData = getMoodSpendingData();
+
+  // Mood vs Productivity Correlation
+  const getMoodProductivityData = () => {
+    if (!journalEntries || !tasks) return [];
+    
+    const moodProductivity: Record<string, { completed: number; total: number; count: number }> = {};
+    
+    journalEntries.forEach(entry => {
+      const entryDate = typeof entry.date === 'string' ? parseISO(entry.date) : new Date(entry.date);
+      const mood = entry.mood || 'neutral';
+      const dayStr = format(entryDate, "yyyy-MM-dd");
+      
+      const dayTasks = tasks.filter(t => {
+        if (!t.dueDate) return false;
+        const taskDate = typeof t.dueDate === 'string' ? parseISO(t.dueDate) : new Date(t.dueDate);
+        return format(taskDate, "yyyy-MM-dd") === dayStr;
+      });
+      
+      if (!moodProductivity[mood]) {
+        moodProductivity[mood] = { completed: 0, total: 0, count: 0 };
+      }
+      moodProductivity[mood].completed += dayTasks.filter(t => t.status === 'done').length;
+      moodProductivity[mood].total += dayTasks.length;
+      moodProductivity[mood].count += 1;
+    });
+    
+    return Object.entries(moodProductivity).map(([mood, data]) => ({
+      mood: moodLabels[mood] || mood,
+      avgCompleted: data.count > 0 ? Math.round((data.completed / data.count) * 10) / 10 : 0,
+      completionRate: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+      color: moodColors[mood] || "#6b7280",
+    })).sort((a, b) => {
+      const moodA = Object.keys(moodLabels).find(k => moodLabels[k] === a.mood) || 'neutral';
+      const moodB = Object.keys(moodLabels).find(k => moodLabels[k] === b.mood) || 'neutral';
+      return moodValues[moodA] - moodValues[moodB];
+    });
+  };
+
+  const moodProductivityData = getMoodProductivityData();
+
+  // Weekly Mood Trend
+  const weeklyMoodData = weekDays.map(day => {
+    const dayEntry = journalEntries?.find(entry => {
+      const entryDate = typeof entry.date === 'string' ? parseISO(entry.date) : new Date(entry.date);
+      return isSameDay(entryDate, day);
+    });
+    
+    return {
+      name: format(day, "EEE"),
+      mood: dayEntry ? moodValues[dayEntry.mood || 'neutral'] : null,
+      moodLabel: dayEntry ? moodLabels[dayEntry.mood || 'neutral'] : "No entry",
+    };
+  });
+
+  // Life Balance Radar
+  const lifeBalanceData = [
+    { subject: 'Finances', value: Math.min(100, Math.max(0, (totalIncome - totalExpense) / 1000)), fullMark: 100 },
+    { subject: 'Tasks', value: taskCompletionRate, fullMark: 100 },
+    { subject: 'Goals', value: goals?.length ? (completedGoals / (completedGoals + activeGoals)) * 100 : 0, fullMark: 100 },
+    { subject: 'Routines', value: routines?.length ? routines.length * 20 : 0, fullMark: 100 },
+    { subject: 'Mood', value: journalEntries?.length ? (journalEntries.reduce((acc, e) => acc + (moodValues[e.mood || 'neutral'] || 3), 0) / journalEntries.length) * 20 : 0, fullMark: 100 },
+    { subject: 'Savings', value: savingsProgress, fullMark: 100 },
+  ];
+
+  // Average Mood Score
+  const avgMoodScore = journalEntries?.length 
+    ? journalEntries.reduce((acc, e) => acc + (moodValues[e.mood || 'neutral'] || 3), 0) / journalEntries.length
+    : 3;
 
   return (
     <Shell>
@@ -296,6 +456,229 @@ export default function InsightsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Cross-Module Insights Section */}
+      <div className="mt-8 mb-4">
+        <h2 className="text-2xl font-display font-bold flex items-center gap-2">
+          <Brain className="w-6 h-6 text-primary" />
+          Cross-Module Insights
+        </h2>
+        <p className="text-muted-foreground">Discover patterns between your mood, spending, and productivity.</p>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-8 mb-8">
+        {/* Mood Score Card */}
+        <Card className="bg-gradient-to-br from-violet-500/10 to-purple-500/5 border-violet-200 dark:border-violet-800" data-testid="card-mood-score">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Average Mood</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-4xl font-bold">{avgMoodScore.toFixed(1)}</p>
+                  <span className="text-muted-foreground">/5</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Based on {journalEntries?.length || 0} entries
+                </p>
+              </div>
+              <div className={cn(
+                "p-4 rounded-xl",
+                avgMoodScore >= 4 ? "bg-green-100 dark:bg-green-900/30" : 
+                avgMoodScore >= 3 ? "bg-yellow-100 dark:bg-yellow-900/30" : 
+                "bg-red-100 dark:bg-red-900/30"
+              )}>
+                {avgMoodScore >= 4 ? (
+                  <Smile className="w-8 h-8 text-green-600" />
+                ) : avgMoodScore >= 3 ? (
+                  <Smile className="w-8 h-8 text-yellow-600" />
+                ) : (
+                  <Frown className="w-8 h-8 text-red-600" />
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Journal Entries Count */}
+        <Card className="bg-gradient-to-br from-pink-500/10 to-rose-500/5 border-pink-200 dark:border-pink-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-pink-500/20">
+                <Zap className="w-5 h-5 text-pink-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Journal Streak</p>
+                <p className="text-2xl font-bold">{journalEntries?.length || 0} entries</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Mood Distribution Mini */}
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground mb-3">Mood Distribution</p>
+            <div className="flex gap-1 h-8">
+              {moodDistributionData.map((item, i) => (
+                <div 
+                  key={i}
+                  className="rounded transition-all hover:scale-105"
+                  style={{ 
+                    backgroundColor: item.color, 
+                    flex: item.value,
+                    minWidth: item.value > 0 ? '8px' : '0'
+                  }}
+                  title={`${item.name}: ${item.value}`}
+                />
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {moodDistributionData.map((item, i) => (
+                <div key={i} className="flex items-center gap-1 text-xs">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                  {item.name}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-8 mb-8">
+        {/* Mood vs Spending */}
+        <Card className="shadow-lg" data-testid="card-mood-spending">
+          <CardHeader>
+            <CardTitle>Mood vs Spending</CardTitle>
+            <CardDescription>Average daily spending by mood</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {moodSpendingData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={moodSpendingData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="mood" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip 
+                    formatter={(value: number) => [`$${value.toLocaleString()}`, "Avg Spending"]}
+                    contentStyle={{ 
+                      borderRadius: '8px', 
+                      border: 'none', 
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      backgroundColor: 'hsl(var(--card))'
+                    }} 
+                  />
+                  <Bar 
+                    dataKey="avgSpending" 
+                    radius={[4, 4, 0, 0]}
+                    fill="hsl(var(--primary))"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                Add journal entries to see mood-spending correlations
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Mood vs Productivity */}
+        <Card className="shadow-lg" data-testid="card-mood-productivity">
+          <CardHeader>
+            <CardTitle>Mood vs Productivity</CardTitle>
+            <CardDescription>Task completion rate by mood</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {moodProductivityData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={moodProductivityData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="mood" className="text-xs" />
+                  <YAxis className="text-xs" domain={[0, 100]} />
+                  <Tooltip 
+                    formatter={(value: number) => [`${value}%`, "Completion Rate"]}
+                    contentStyle={{ 
+                      borderRadius: '8px', 
+                      border: 'none', 
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      backgroundColor: 'hsl(var(--card))'
+                    }} 
+                  />
+                  <Bar 
+                    dataKey="completionRate" 
+                    radius={[4, 4, 0, 0]}
+                    fill="#8b5cf6"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                Add journal entries and tasks to see mood-productivity correlations
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-8 mb-8">
+        {/* Life Balance Radar */}
+        <Card className="shadow-lg" data-testid="card-life-balance">
+          <CardHeader>
+            <CardTitle>Life Balance</CardTitle>
+            <CardDescription>Overview of all life areas</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={lifeBalanceData}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="subject" className="text-xs" />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                <Radar
+                  name="Score"
+                  dataKey="value"
+                  stroke="hsl(var(--primary))"
+                  fill="hsl(var(--primary))"
+                  fillOpacity={0.3}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Weekly Mood Trend */}
+      <Card className="shadow-lg mb-8" data-testid="card-weekly-mood">
+        <CardHeader>
+          <CardTitle>Weekly Mood Trend</CardTitle>
+          <CardDescription>Your emotional journey this week</CardDescription>
+        </CardHeader>
+        <CardContent className="h-[200px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={weeklyMoodData}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="name" className="text-xs" />
+              <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} className="text-xs" />
+              <Tooltip 
+                formatter={(value) => [value ? `${value}/5` : "No entry", "Mood Score"]}
+                contentStyle={{ 
+                  borderRadius: '8px', 
+                  border: 'none', 
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  backgroundColor: 'hsl(var(--card))'
+                }} 
+              />
+              <Line 
+                type="monotone" 
+                dataKey="mood" 
+                stroke="hsl(var(--primary))" 
+                strokeWidth={3}
+                dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 5 }}
+                connectNulls={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </Shell>
   );
 }
