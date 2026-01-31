@@ -626,11 +626,6 @@ function FinanceCalendarView() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showRecurringDialog, setShowRecurringDialog] = useState(false);
-  const [baselineBalance, setBaselineBalance] = useState<number>(() => {
-    const saved = localStorage.getItem('baselineBalance');
-    return saved ? parseFloat(saved) : 0;
-  });
-  const [baselineInput, setBaselineInput] = useState(String(baselineBalance));
   
   const recurringForm = useForm<RecurringFormData>({
     resolver: zodResolver(recurringSchema),
@@ -667,11 +662,6 @@ function FinanceCalendarView() {
     recurringForm.reset();
   };
   
-  const applyBaseline = () => {
-    const val = parseFloat(baselineInput) || 0;
-    setBaselineBalance(val);
-    localStorage.setItem('baselineBalance', String(val));
-  };
   
   const occursOn = (template: any, day: Date, startDate: Date) => {
     const d = new Date(day.getFullYear(), day.getMonth(), day.getDate());
@@ -813,9 +803,22 @@ function FinanceCalendarView() {
   
   const payPeriods = getPayPeriods();
   
+  // Calculate current balance from all transactions (income - expenses)
+  const allTimeIncome = (transactions || []).filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+  const allTimeExpense = (transactions || []).filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+  const currentBalance = allTimeIncome - allTimeExpense;
+  
   const computeProjectedBalances = () => {
     const balances: Map<string, { balance: number; income: number; expense: number; items: any[] }> = new Map();
-    let running = baselineBalance;
+    
+    // Calculate balance up to the start of current month from actual transactions
+    const transactionsBeforeMonth = (transactions || []).filter(t => {
+      const tDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+      return tDate < monthStart;
+    });
+    const incomeBeforeMonth = transactionsBeforeMonth.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+    const expenseBeforeMonth = transactionsBeforeMonth.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+    let running = incomeBeforeMonth - expenseBeforeMonth;
     
     const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
     
@@ -851,7 +854,7 @@ function FinanceCalendarView() {
   
   const projectedBalances = computeProjectedBalances();
   
-  const projectedEndBalance = Array.from(projectedBalances.values()).pop()?.balance ?? baselineBalance;
+  const projectedEndBalance = Array.from(projectedBalances.values()).pop()?.balance ?? currentBalance;
   
   const getPayoutPeriodStats = () => {
     if (paydayDates.length < 2) return [];
@@ -971,35 +974,22 @@ function FinanceCalendarView() {
   
   return (
     <div className="space-y-6">
-      <Card className="shadow-md" data-testid="card-baseline">
+      <Card className="shadow-md" data-testid="card-balance-summary">
         <CardContent className="pt-6">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <Label htmlFor="baseline" className="text-sm text-muted-foreground mb-2 block">Starting Balance</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="baseline"
-                  type="number"
-                  placeholder="Enter starting balance"
-                  value={baselineInput}
-                  onChange={(e) => setBaselineInput(e.target.value)}
-                  className="max-w-[200px]"
-                  data-testid="input-baseline"
-                />
-                <Button onClick={applyBaseline} data-testid="button-apply-baseline">Apply</Button>
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Current Balance:</span>
+              <span className={cn("text-xl font-bold", currentBalance >= 0 ? "text-green-600" : "text-red-600")} data-testid="text-current-balance">
+                {formatCurrency(currentBalance, currency)}
+              </span>
             </div>
-            <div className="flex gap-6 text-sm">
-              <div>
-                <span className="text-muted-foreground">Current:</span>
-                <span className="ml-2 font-semibold">{formatCurrency(baselineBalance, currency)}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Projected End:</span>
-                <span className={cn("ml-2 font-semibold", projectedEndBalance >= 0 ? "text-green-600" : "text-red-600")}>
-                  {formatCurrency(projectedEndBalance, currency)}
-                </span>
-              </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Projected End of Month:</span>
+              <span className={cn("text-xl font-bold", projectedEndBalance >= 0 ? "text-green-600" : "text-red-600")} data-testid="text-projected-balance">
+                {formatCurrency(projectedEndBalance, currency)}
+              </span>
             </div>
           </div>
         </CardContent>
@@ -1560,7 +1550,7 @@ function FinanceCalendarView() {
                         const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
                         const selectedDayProjection = projectedBalances.get(selectedDateStr);
                         const recurring = selectedDayProjection?.items || [];
-                        const selectedProjectedBalance = selectedDayProjection?.balance ?? baselineBalance;
+                        const selectedProjectedBalance = selectedDayProjection?.balance ?? currentBalance;
                         
                         const getFrequencyLabel = (r: any) => {
                           const opt = FREQUENCY_OPTIONS.find(o => o.value === r.frequency);
