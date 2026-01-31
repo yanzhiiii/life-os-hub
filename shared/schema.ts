@@ -79,6 +79,22 @@ export const transactions = pgTable("transactions", {
   isRecurring: boolean("is_recurring").default(false),
 });
 
+export const recurringTemplates = pgTable("recurring_templates", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  type: text("type").notNull(), // income, expense
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  category: text("category").notNull(),
+  name: text("name").notNull(),
+  frequency: text("frequency").notNull(), // daily, weekly, monthly, custom
+  dayOfWeek: integer("day_of_week"), // 0-6 for weekly
+  dayOfMonth: integer("day_of_month"), // 1-31 for monthly
+  customDays: text("custom_days").array(), // for custom: ["5", "20"] or ["15", "end"]
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"), // null = no end
+  isActive: boolean("is_active").default(true),
+});
+
 export const debts = pgTable("debts", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
@@ -157,6 +173,10 @@ export const insertGoalSchema = createInsertSchema(goals).omit({ id: true, userI
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, userId: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true, userId: true });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, userId: true });
+export const insertRecurringTemplateSchema = createInsertSchema(recurringTemplates).omit({ id: true, userId: true }).extend({
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date().optional().nullable(),
+});
 export const insertDebtSchema = createInsertSchema(debts).omit({ id: true, userId: true });
 export const insertSavingsGoalSchema = createInsertSchema(savingsGoals).omit({ id: true, userId: true });
 export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit({ id: true, userId: true });
@@ -178,6 +198,8 @@ export type Event = typeof events.$inferSelect;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type RecurringTemplate = typeof recurringTemplates.$inferSelect;
+export type InsertRecurringTemplate = z.infer<typeof insertRecurringTemplateSchema>;
 export type Debt = typeof debts.$inferSelect;
 export type InsertDebt = z.infer<typeof insertDebtSchema>;
 export type SavingsGoal = typeof savingsGoals.$inferSelect;

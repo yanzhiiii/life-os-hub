@@ -8,6 +8,7 @@ import {
   insertTaskSchema,
   insertEventSchema,
   insertTransactionSchema,
+  insertRecurringTemplateSchema,
   insertDebtSchema,
   insertSavingsGoalSchema,
   insertJournalEntrySchema,
@@ -19,6 +20,7 @@ import {
   tasks,
   events,
   transactions,
+  recurringTemplates,
   debts,
   savingsGoals,
   journalEntries,
@@ -233,6 +235,30 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/transactions/:id',
+      responses: { 204: z.void() },
+    }
+  },
+  recurringTemplates: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/recurring-templates',
+      responses: { 200: z.array(z.custom<typeof recurringTemplates.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/recurring-templates',
+      input: insertRecurringTemplateSchema,
+      responses: { 201: z.custom<typeof recurringTemplates.$inferSelect>() },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/recurring-templates/:id',
+      input: insertRecurringTemplateSchema.partial(),
+      responses: { 200: z.custom<typeof recurringTemplates.$inferSelect>() },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/recurring-templates/:id',
       responses: { 204: z.void() },
     }
   },

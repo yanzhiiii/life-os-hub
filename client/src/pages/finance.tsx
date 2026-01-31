@@ -8,15 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useTransactions, useCreateTransaction, useDebts, useCreateDebt, useSavingsGoals, useCreateSavingsGoal } from "@/hooks/use-finance";
-import { useDayStatuses } from "@/hooks/use-day-statuses";
-import { useEvents } from "@/hooks/use-events";
+import { useRecurringTemplates, useCreateRecurringTemplate, useDeleteRecurringTemplate } from "@/hooks/use-recurring-templates";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { useUser } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertTransactionSchema, insertDebtSchema, insertSavingsGoalSchema } from "@shared/schema";
+import { insertTransactionSchema, insertDebtSchema, insertSavingsGoalSchema, insertRecurringTemplateSchema } from "@shared/schema";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { z } from "zod";
-import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3, Briefcase, Coffee, Clock, Stethoscope, Palmtree, Tag, CalendarCheck, Eye, EyeOff } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3, Repeat } from "lucide-react";
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, parseISO, setDate, isAfter, isBefore, differenceInDays, addDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer as ReBarContainer, Tooltip as ReBarTooltip, Legend } from "recharts";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip } from "recharts";
@@ -26,6 +27,18 @@ const transactionSchema = insertTransactionSchema.extend({
   amount: z.coerce.number().min(0.01),
   date: z.coerce.date(),
 });
+
+const recurringSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  type: z.enum(["income", "expense"]),
+  amount: z.coerce.number().min(0.01, "Amount must be greater than 0"),
+  category: z.string().min(1),
+  frequency: z.enum(["monthly", "weekly"]),
+  dayOfMonth: z.coerce.number().min(1).max(31).optional(),
+  dayOfWeek: z.coerce.number().min(0).max(6).optional(),
+});
+
+type RecurringFormData = z.infer<typeof recurringSchema>;
 
 const debtSchema = z.object({
   name: z.string().min(1),
@@ -586,45 +599,54 @@ const formatCurrency = (amount: number, currency: string = "PHP") => {
   }).format(amount);
 };
 
-const statusConfig = [
-  { value: "working", label: "Working", icon: Briefcase, bgColor: "bg-blue-100 dark:bg-blue-900/40", textColor: "text-blue-600", dotColor: "bg-blue-500" },
-  { value: "standby", label: "Standby", icon: Clock, bgColor: "bg-orange-100 dark:bg-orange-900/40", textColor: "text-orange-600", dotColor: "bg-orange-500" },
-  { value: "rest", label: "Rest Day", icon: Coffee, bgColor: "bg-green-100 dark:bg-green-900/40", textColor: "text-green-600", dotColor: "bg-green-500" },
-  { value: "sick_leave", label: "Sick Leave", icon: Stethoscope, bgColor: "bg-red-100 dark:bg-red-900/40", textColor: "text-red-600", dotColor: "bg-red-500" },
-  { value: "annual_leave", label: "Annual Leave", icon: Palmtree, bgColor: "bg-amber-100 dark:bg-amber-900/40", textColor: "text-amber-600", dotColor: "bg-amber-500" },
-  { value: "custom", label: "Custom", icon: Tag, bgColor: "bg-purple-100 dark:bg-purple-900/40", textColor: "text-purple-600", dotColor: "bg-purple-500" },
-];
+const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Rent', 'Utilities', 'Internet', 'Laundry', 'Entertainment', 'Shopping', 'Health', 'Other'];
+
+const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function FinanceCalendarView() {
   const { data: transactions } = useTransactions();
   const { data: user } = useUser();
-  const { data: dayStatuses } = useDayStatuses();
-  const { data: events } = useEvents();
+  const { data: recurringTemplates } = useRecurringTemplates();
+  const { mutate: createRecurring, isPending: isCreating } = useCreateRecurringTemplate();
+  const { mutate: deleteRecurring } = useDeleteRecurringTemplate();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [visibleStatuses, setVisibleStatuses] = useState<Record<string, boolean>>({
-    working: true, standby: true, rest: true, sick_leave: true, annual_leave: true, custom: true, events: true
+  const [showRecurringDialog, setShowRecurringDialog] = useState(false);
+  
+  const recurringForm = useForm<RecurringFormData>({
+    resolver: zodResolver(recurringSchema),
+    defaultValues: {
+      name: '',
+      type: 'expense',
+      amount: 0,
+      category: 'Food',
+      frequency: 'monthly',
+      dayOfMonth: 15,
+      dayOfWeek: 1,
+    },
   });
+  
+  const watchFrequency = recurringForm.watch('frequency');
+  
+  const onSubmitRecurring = (data: RecurringFormData) => {
+    createRecurring({
+      name: data.name,
+      type: data.type,
+      amount: String(data.amount),
+      category: data.category,
+      frequency: data.frequency,
+      dayOfMonth: data.frequency === 'monthly' ? data.dayOfMonth : undefined,
+      dayOfWeek: data.frequency === 'weekly' ? data.dayOfWeek : undefined,
+      startDate: new Date(),
+      isActive: true,
+    });
+    setShowRecurringDialog(false);
+    recurringForm.reset();
+  };
   
   const currency = user?.currency || "PHP";
   const rawPaydayDates = user?.paydayConfig?.dates || [15, 30];
   const paydayDates = Array.from(new Set(rawPaydayDates)).filter(d => d >= 1 && d <= 31).sort((a, b) => a - b);
-  
-  const dayStatusMap = (dayStatuses || []).reduce((acc, ds) => {
-    acc[ds.date] = ds;
-    return acc;
-  }, {} as Record<string, typeof dayStatuses extends (infer T)[] | undefined ? T : never>);
-  
-  const eventsMap = (events || []).reduce((acc, ev) => {
-    const dateStr = format(new Date(ev.startTime), "yyyy-MM-dd");
-    if (!acc[dateStr]) acc[dateStr] = [];
-    acc[dateStr].push(ev);
-    return acc;
-  }, {} as Record<string, typeof events>);
-  
-  const toggleStatus = (status: string) => {
-    setVisibleStatuses(prev => ({ ...prev, [status]: !prev[status] }));
-  };
   
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -917,7 +939,160 @@ function FinanceCalendarView() {
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl">{format(currentMonth, "MMMM yyyy")}</CardTitle>
-              <div className="flex gap-1">
+              <div className="flex gap-2">
+                <Dialog open={showRecurringDialog} onOpenChange={setShowRecurringDialog}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1.5" data-testid="button-add-recurring">
+                      <Plus className="w-4 h-4" />
+                      Recurring
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Recurring Transaction</DialogTitle>
+                    </DialogHeader>
+                    <Form {...recurringForm}>
+                      <form onSubmit={recurringForm.handleSubmit(onSubmitRecurring)} className="space-y-4 pt-4">
+                        <FormField
+                          control={recurringForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g., Internet Bill" {...field} data-testid="input-recurring-name" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={recurringForm.control}
+                            name="type"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Type</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-recurring-type">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="expense">Expense</SelectItem>
+                                    <SelectItem value="income">Income</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={recurringForm.control}
+                            name="amount"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Amount</FormLabel>
+                                <FormControl>
+                                  <Input type="number" placeholder="0" {...field} data-testid="input-recurring-amount" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={recurringForm.control}
+                            name="category"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Category</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-recurring-category">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {EXPENSE_CATEGORIES.map(cat => (
+                                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={recurringForm.control}
+                            name="frequency"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Frequency</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-recurring-frequency">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="monthly">Monthly</SelectItem>
+                                    <SelectItem value="weekly">Weekly</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        {watchFrequency === 'monthly' && (
+                          <FormField
+                            control={recurringForm.control}
+                            name="dayOfMonth"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Day of Month</FormLabel>
+                                <FormControl>
+                                  <Input type="number" min={1} max={31} {...field} data-testid="input-recurring-day" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        {watchFrequency === 'weekly' && (
+                          <FormField
+                            control={recurringForm.control}
+                            name="dayOfWeek"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Day of Week</FormLabel>
+                                <Select onValueChange={(v) => field.onChange(parseInt(v))} value={String(field.value)}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-recurring-weekday">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {DAYS_OF_WEEK.map((day, i) => (
+                                      <SelectItem key={i} value={String(i)}>{day}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        <Button type="submit" className="w-full" disabled={isCreating} data-testid="button-save-recurring">
+                          {isCreating ? 'Saving...' : 'Save Recurring Transaction'}
+                        </Button>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
                 <Button 
                   variant="outline" 
                   size="icon"
@@ -935,46 +1110,6 @@ function FinanceCalendarView() {
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              {statusConfig.map((status) => {
-                const Icon = status.icon;
-                const isVisible = visibleStatuses[status.value];
-                return (
-                  <Button
-                    key={status.value}
-                    variant={isVisible ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleStatus(status.value)}
-                    className={cn(
-                      "gap-1.5 text-xs",
-                      isVisible && status.bgColor,
-                      isVisible && status.textColor,
-                      isVisible && "border-transparent"
-                    )}
-                    data-testid={`toggle-status-${status.value}`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    {status.label}
-                    {isVisible ? <Eye className="w-3 h-3 ml-1" /> : <EyeOff className="w-3 h-3 ml-1 opacity-50" />}
-                  </Button>
-                );
-              })}
-              <Button
-                variant={visibleStatuses.events ? "default" : "outline"}
-                size="sm"
-                onClick={() => toggleStatus("events")}
-                className={cn(
-                  "gap-1.5 text-xs",
-                  visibleStatuses.events && "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 border-transparent"
-                )}
-                data-testid="toggle-events"
-              >
-                <CalendarCheck className="w-3.5 h-3.5" />
-                Events
-                {visibleStatuses.events ? <Eye className="w-3 h-3 ml-1" /> : <EyeOff className="w-3 h-3 ml-1 opacity-50" />}
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -994,15 +1129,21 @@ function FinanceCalendarView() {
                 ))}
                 {calendarDays.map(day => {
                   const dateStr = format(day, "yyyy-MM-dd");
+                  const dayOfMonth = day.getDate();
+                  const dayOfWeek = day.getDay();
                   const summary = getDaySummary(day);
                   const isToday = isSameDay(day, new Date());
                   const isSelected = selectedDate && isSameDay(day, selectedDate);
                   const hasTransactions = summary.transactions.length > 0;
-                  const dayStatus = dayStatusMap[dateStr];
-                  const dayEvents = eventsMap[dateStr] || [];
-                  const statusInfo = dayStatus ? statusConfig.find(s => s.value === dayStatus.status) : null;
-                  const showStatus = statusInfo && visibleStatuses[dayStatus?.status || ""];
-                  const showEvents = visibleStatuses.events && dayEvents.length > 0;
+                  const isPayday = paydayDates.includes(dayOfMonth);
+                  const recurringForDay = (recurringTemplates || []).filter(r => {
+                    if (!r.isActive) return false;
+                    if (r.frequency === 'monthly' && r.dayOfMonth === dayOfMonth) return true;
+                    if (r.frequency === 'weekly' && r.dayOfWeek === dayOfWeek) return true;
+                    return false;
+                  });
+                  const projectedExpense = recurringForDay.filter(r => r.type === 'expense').reduce((acc, r) => acc + Number(r.amount), 0);
+                  const projectedIncome = recurringForDay.filter(r => r.type === 'income').reduce((acc, r) => acc + Number(r.amount), 0);
                   
                   return (
                     <button
@@ -1012,32 +1153,38 @@ function FinanceCalendarView() {
                         "h-20 p-1.5 rounded-lg text-xs transition-all relative flex flex-col items-start justify-start border",
                         isToday && "ring-2 ring-primary ring-offset-1",
                         isSelected && "bg-primary/10 border-primary",
-                        !isSelected && "border-transparent hover:border-primary/30 hover:bg-secondary/30"
+                        isPayday && !isSelected && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700",
+                        !isSelected && !isPayday && "border-transparent hover:border-primary/30 hover:bg-secondary/30"
                       )}
                       data-testid={`finance-day-${dateStr}`}
                     >
                       <div className="flex items-center justify-between w-full mb-1">
                         <span className={cn(
                           "font-semibold text-sm",
-                          isToday && "text-primary"
+                          isToday && "text-primary",
+                          isPayday && "text-yellow-600 dark:text-yellow-400"
                         )}>{format(day, "d")}</span>
-                        {showStatus && statusInfo && (
-                          <div className={cn("w-2.5 h-2.5 rounded-full", statusInfo.dotColor)} title={statusInfo.label} />
+                        {isPayday && (
+                          <DollarSign className="w-3 h-3 text-yellow-600" />
                         )}
                       </div>
                       
                       <div className="flex flex-col gap-0.5 w-full flex-1 overflow-hidden">
-                        {showStatus && statusInfo && (
-                          <div className={cn("flex items-center gap-1 px-1 py-0.5 rounded text-[10px] truncate", statusInfo.bgColor, statusInfo.textColor)}>
-                            {(() => { const SIcon = statusInfo.icon; return <SIcon className="w-2.5 h-2.5 flex-shrink-0" />; })()}
-                            <span className="truncate">{dayStatus?.customLabel || statusInfo.label}</span>
+                        {recurringForDay.length > 0 && (
+                          <div className="flex items-center gap-1 px-1 py-0.5 rounded text-[10px] bg-purple-100 dark:bg-purple-900/40 text-purple-600 truncate">
+                            <Repeat className="w-2.5 h-2.5 flex-shrink-0" />
+                            <span className="truncate">{recurringForDay.length} bill{recurringForDay.length > 1 ? 's' : ''}</span>
                           </div>
                         )}
                         
-                        {showEvents && (
-                          <div className="flex items-center gap-1 px-1 py-0.5 rounded text-[10px] bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 truncate">
-                            <CalendarCheck className="w-2.5 h-2.5 flex-shrink-0" />
-                            <span className="truncate">{dayEvents.length} event{dayEvents.length > 1 ? 's' : ''}</span>
+                        {(projectedIncome > 0 || projectedExpense > 0) && (
+                          <div className="flex gap-1 text-[10px]">
+                            {projectedIncome > 0 && (
+                              <span className="text-green-600 font-medium opacity-60">+{projectedIncome >= 1000 ? `${(projectedIncome/1000).toFixed(0)}k` : projectedIncome}</span>
+                            )}
+                            {projectedExpense > 0 && (
+                              <span className="text-red-600 font-medium opacity-60">-{projectedExpense >= 1000 ? `${(projectedExpense/1000).toFixed(0)}k` : projectedExpense}</span>
+                            )}
                           </div>
                         )}
                         
@@ -1058,37 +1205,17 @@ function FinanceCalendarView() {
               </div>
             </div>
             
-            <div>
+            <div className="space-y-4">
               <Card className="shadow-sm border-2">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">
                     {selectedDate ? format(selectedDate, "EEEE, MMMM d") : "Select a Date"}
                   </CardTitle>
-                  {selectedDate && (
-                    <CardDescription>
-                      {(() => {
-                        const dateStr = format(selectedDate, "yyyy-MM-dd");
-                        const status = dayStatusMap[dateStr];
-                        const dayEvents = eventsMap[dateStr] || [];
-                        const statusInfo = status ? statusConfig.find(s => s.value === status.status) : null;
-                        return (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {statusInfo && (
-                              <Badge variant="secondary" className={cn("text-xs", statusInfo.bgColor, statusInfo.textColor)}>
-                                {(() => { const SIcon = statusInfo.icon; return <SIcon className="w-3 h-3 mr-1" />; })()}
-                                {status?.customLabel || statusInfo.label}
-                              </Badge>
-                            )}
-                            {dayEvents.length > 0 && (
-                              <Badge variant="secondary" className="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600">
-                                <CalendarCheck className="w-3 h-3 mr-1" />
-                                {dayEvents.length} event{dayEvents.length > 1 ? 's' : ''}
-                              </Badge>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </CardDescription>
+                  {selectedDate && paydayDates.includes(selectedDate.getDate()) && (
+                    <Badge variant="secondary" className="text-xs bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600 w-fit">
+                      <DollarSign className="w-3 h-3 mr-1" />
+                      Payday
+                    </Badge>
                   )}
                 </CardHeader>
                 <CardContent>
@@ -1106,19 +1233,35 @@ function FinanceCalendarView() {
                       </div>
                       
                       {(() => {
-                        const dateStr = format(selectedDate, "yyyy-MM-dd");
-                        const dayEvents = eventsMap[dateStr] || [];
-                        if (dayEvents.length > 0) {
+                        const dayOfMonth = selectedDate.getDate();
+                        const dayOfWeek = selectedDate.getDay();
+                        const recurring = (recurringTemplates || []).filter(r => {
+                          if (!r.isActive) return false;
+                          if (r.frequency === 'monthly' && r.dayOfMonth === dayOfMonth) return true;
+                          if (r.frequency === 'weekly' && r.dayOfWeek === dayOfWeek) return true;
+                          return false;
+                        });
+                        if (recurring.length > 0) {
                           return (
                             <div className="space-y-2">
-                              <p className="text-xs font-medium text-muted-foreground">Events</p>
-                              {dayEvents.map(ev => (
-                                <div key={ev.id} className="flex items-center gap-2 p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
-                                  <CalendarCheck className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                                  <div className="min-w-0">
-                                    <p className="font-medium text-sm truncate">{ev.title}</p>
-                                    <p className="text-xs text-muted-foreground">{format(new Date(ev.startTime), "h:mm a")}</p>
+                              <p className="text-xs font-medium text-muted-foreground">Recurring Bills</p>
+                              {recurring.map(r => (
+                                <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <Repeat className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="font-medium text-sm truncate">{r.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {r.category} • {r.frequency === 'weekly' ? DAYS_OF_WEEK[r.dayOfWeek || 0] : `Day ${r.dayOfMonth}`}
+                                      </p>
+                                    </div>
                                   </div>
+                                  <span className={cn(
+                                    "font-bold text-xs flex-shrink-0",
+                                    r.type === 'income' ? "text-green-600" : "text-red-600"
+                                  )}>
+                                    {r.type === 'income' ? '+' : '-'}{formatCurrency(Number(r.amount), currency)}
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -1162,8 +1305,52 @@ function FinanceCalendarView() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <CalendarDays className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Select a date</p>
+                      <p className="text-sm">Select a date to see details</p>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Repeat className="w-4 h-4" />
+                    Recurring Templates
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(recurringTemplates || []).length > 0 ? (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {(recurringTemplates || []).filter(r => r.isActive).map(r => (
+                        <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30" data-testid={`recurring-${r.id}`}>
+                          <div className="min-w-0">
+                            <p className="font-medium text-xs truncate">{r.name}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {r.frequency === 'weekly' ? `Every ${DAYS_OF_WEEK[r.dayOfWeek || 0]}` : `Day ${r.dayOfMonth}`}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "font-bold text-xs",
+                              r.type === 'income' ? "text-green-600" : "text-red-600"
+                            )}>
+                              {formatCurrency(Number(r.amount), currency)}
+                            </span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6"
+                              onClick={() => deleteRecurring(r.id)}
+                              data-testid={`delete-recurring-${r.id}`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-2">No recurring templates</p>
                   )}
                 </CardContent>
               </Card>

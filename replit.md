@@ -100,22 +100,25 @@ Preferred communication style: Simple, everyday language.
 ### Enhanced Modules
 - **Dashboard** - Dynamic salary countdown based on user's payday config, today's working status display, time-based greetings
 - **Productivity Page** - Complete Routines tab with step tracking and daily completion logging; Goals tab with milestone tracking and progress visualization
-- **Finance Page** - Calendar tab with enhanced UI featuring toggle buttons for status visibility (Working, Standby, Rest Day, Sick Leave, Annual Leave, Custom, Events), larger calendar cells with color-coded status indicators and event badges, integrated day status and events display, pay period analytics (days remaining, spent this period, daily average), pay period comparison chart; Debts tab with "breaking chains" visualization; Savings tab with "filling jar" visualization; Spending by Category pie chart with legend showing percentages
+- **Finance Page** - Calendar tab refactored to pure finance focus: recurring expense/income templates, payday highlighting, projected bills per day, pay period analytics (days remaining, spent this period, daily average), pay period comparison chart; Debts tab with "breaking chains" visualization; Savings tab with "filling jar" visualization; Spending by Category pie chart with legend showing percentages; Recurring Templates panel for managing monthly bills
 - **Calendar Page** - Day status system (Working Day, Standby, Rest Day, Sick Leave, Annual Leave, Custom) with color-coded calendar indicators, upcoming events timeline with "X days to go" labels, planning ahead capability for future dates
 
 ### New Database Tables
 - `day_statuses` - Tracks working/rest/leave status per day with optional custom labels and colors
+- `recurring_templates` - Recurring expense/income templates with frequency patterns (monthly, by day of month), active status, and category
 
 ### New API Endpoints
 - `PATCH /api/user/settings` - Update user settings (displayName, currency, paydayConfig)
 - `GET/PUT /api/day-statuses/:date` - Get/upsert day status for a specific date
 - `GET /api/day-statuses` - List all day statuses for current user
+- `GET/POST/PATCH/DELETE /api/recurring-templates` - CRUD for recurring expense/income templates
 
 ### New Hooks
 - `use-events.ts` - Calendar event CRUD operations
 - `use-goals.ts` - Goal and milestone management
 - `use-day-statuses.ts` - Day status CRUD operations
 - `use-user-settings.ts` - User settings persistence
+- `use-recurring-templates.ts` - Recurring expense/income template CRUD operations
 - Extended routines hook with completion tracking
 
 ### Cross-Module Insights
@@ -132,4 +135,5 @@ Preferred communication style: Simple, everyday language.
 - Routine steps and goal milestones entered as newline-separated text, transformed to arrays on submit
 - Currency formatting uses user's selected currency (PHP, USD, EUR, GBP, JPY)
 - Day status buttons use `data-testid="button-status-{type}"` format
-- Finance Calendar toggle buttons use `data-testid="toggle-status-{type}"` and `data-testid="toggle-events"` format
+- Finance Calendar uses `data-testid="button-add-recurring"` for adding recurring templates
+- Recurring template items use `data-testid="recurring-{id}"` format

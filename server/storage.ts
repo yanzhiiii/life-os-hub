@@ -1,6 +1,6 @@
 import {
   users, routines, routineCompletions, goals, tasks, events,
-  transactions, debts, savingsGoals, journalEntries, dayStatuses,
+  transactions, recurringTemplates, debts, savingsGoals, journalEntries, dayStatuses,
   type User, type InsertUser, type UpdateUserSettings,
   type Routine, type InsertRoutine,
   type RoutineCompletion, type InsertRoutineCompletion,
@@ -8,6 +8,7 @@ import {
   type Task, type InsertTask,
   type Event, type InsertEvent,
   type Transaction, type InsertTransaction,
+  type RecurringTemplate, type InsertRecurringTemplate,
   type Debt, type InsertDebt,
   type SavingsGoal, type InsertSavingsGoal,
   type JournalEntry, type InsertJournalEntry,
@@ -53,6 +54,12 @@ export interface IStorage {
   getTransactions(userId: number): Promise<Transaction[]>;
   createTransaction(userId: number, transaction: InsertTransaction): Promise<Transaction>;
   deleteTransaction(id: number): Promise<void>;
+
+  // Recurring Templates
+  getRecurringTemplates(userId: number): Promise<RecurringTemplate[]>;
+  createRecurringTemplate(userId: number, template: InsertRecurringTemplate): Promise<RecurringTemplate>;
+  updateRecurringTemplate(id: number, template: Partial<InsertRecurringTemplate>): Promise<RecurringTemplate | undefined>;
+  deleteRecurringTemplate(id: number): Promise<void>;
 
   // Debts
   getDebts(userId: number): Promise<Debt[]>;
@@ -221,6 +228,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTransaction(id: number): Promise<void> {
     await db.delete(transactions).where(eq(transactions.id, id));
+  }
+
+  async getRecurringTemplates(userId: number): Promise<RecurringTemplate[]> {
+    return db.select().from(recurringTemplates).where(eq(recurringTemplates.userId, userId));
+  }
+
+  async createRecurringTemplate(userId: number, template: InsertRecurringTemplate): Promise<RecurringTemplate> {
+    const [result] = await db.insert(recurringTemplates).values({ ...template, userId }).returning();
+    return result;
+  }
+
+  async updateRecurringTemplate(id: number, template: Partial<InsertRecurringTemplate>): Promise<RecurringTemplate | undefined> {
+    const [result] = await db.update(recurringTemplates).set(template).where(eq(recurringTemplates.id, id)).returning();
+    return result;
+  }
+
+  async deleteRecurringTemplate(id: number): Promise<void> {
+    await db.delete(recurringTemplates).where(eq(recurringTemplates.id, id));
   }
 
   // Debts

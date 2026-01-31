@@ -273,6 +273,29 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Recurring Templates
+  app.get(api.recurringTemplates.list.path, isAuthenticated, async (req, res) => {
+    const templates = await storage.getRecurringTemplates(getUserId(req));
+    res.json(templates);
+  });
+
+  app.post(api.recurringTemplates.create.path, isAuthenticated, async (req, res) => {
+    const input = api.recurringTemplates.create.input.parse(req.body);
+    const template = await storage.createRecurringTemplate(getUserId(req), input);
+    res.status(201).json(template);
+  });
+
+  app.patch(api.recurringTemplates.update.path, isAuthenticated, async (req, res) => {
+    const input = api.recurringTemplates.update.input.parse(req.body);
+    const template = await storage.updateRecurringTemplate(Number(req.params.id), input);
+    res.json(template);
+  });
+
+  app.delete(api.recurringTemplates.delete.path, isAuthenticated, async (req, res) => {
+    await storage.deleteRecurringTemplate(Number(req.params.id));
+    res.status(204).send();
+  });
+
   // Debts
   app.get(api.debts.list.path, isAuthenticated, async (req, res) => {
     const debts = await storage.getDebts(getUserId(req));

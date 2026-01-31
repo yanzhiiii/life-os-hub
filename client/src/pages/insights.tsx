@@ -5,6 +5,7 @@ import { useTransactions, useDebts, useSavingsGoals } from "@/hooks/use-finance"
 import { useGoals } from "@/hooks/use-goals";
 import { useRoutines, useRoutineCompletions } from "@/hooks/use-routines";
 import { useJournalEntries } from "@/hooks/use-journal";
+import { useUser } from "@/hooks/use-auth";
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, parseISO, isSameDay } from "date-fns";
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
@@ -41,6 +42,15 @@ const moodColors: Record<string, string> = {
   sad: "#ef4444",
 };
 
+const formatCurrency = (amount: number, currency: string) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
 export default function InsightsPage() {
   const { data: tasks } = useTasks();
   const { data: transactions } = useTransactions();
@@ -49,6 +59,9 @@ export default function InsightsPage() {
   const { data: goals } = useGoals();
   const { data: routines } = useRoutines();
   const { data: journalEntries } = useJournalEntries();
+  const { data: user } = useUser();
+  
+  const currency = user?.currency || "PHP";
 
   // Finance Stats
   const totalIncome = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
@@ -254,7 +267,7 @@ export default function InsightsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Net Balance</p>
-                <p className="text-2xl font-bold">${(totalIncome - totalExpense).toLocaleString()}</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalIncome - totalExpense, currency)}</p>
               </div>
             </div>
           </CardContent>
@@ -411,7 +424,7 @@ export default function InsightsPage() {
                 />
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                ${debtPaid.toLocaleString()} paid of ${totalDebt.toLocaleString()}
+                {formatCurrency(debtPaid, currency)} paid of {formatCurrency(totalDebt, currency)}
               </p>
             </div>
 
@@ -430,7 +443,7 @@ export default function InsightsPage() {
                 />
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                ${totalSaved.toLocaleString()} saved of ${totalSavingsTarget.toLocaleString()}
+                {formatCurrency(totalSaved, currency)} saved of {formatCurrency(totalSavingsTarget, currency)}
               </p>
             </div>
 
@@ -559,7 +572,7 @@ export default function InsightsPage() {
                   <XAxis dataKey="mood" className="text-xs" />
                   <YAxis className="text-xs" />
                   <Tooltip 
-                    formatter={(value: number) => [`$${value.toLocaleString()}`, "Avg Spending"]}
+                    formatter={(value: number) => [formatCurrency(value, currency), "Avg Spending"]}
                     contentStyle={{ 
                       borderRadius: '8px', 
                       border: 'none', 
