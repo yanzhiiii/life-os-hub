@@ -128,8 +128,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async logRoutineCompletion(completion: InsertRoutineCompletion): Promise<RoutineCompletion> {
-    const [newCompletion] = await db.insert(routineCompletions).values(completion).returning();
-    return newCompletion;
+    // Upsert: insert or update if exists for same routineId+date
+    // Uses database-level unique constraint for atomicity
+    const [result] = await db.insert(routineCompletions)
+      .values(completion)
+      .onConflictDoUpdate({
+        target: [routineCompletions.routineId, routineCompletions.date],
+        set: { completedSteps: completion.completedSteps }
+      })
+      .returning();
+    return result;
   }
 
   async getRoutineCompletions(routineIds: number[], date?: string): Promise<RoutineCompletion[]> {
