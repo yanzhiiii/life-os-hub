@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 const taskSchema = insertTaskSchema.extend({
   priority: z.enum(["low", "medium", "high"]),
+  dueDate: z.string().optional().nullable(),
 });
 
 const routineSchema = z.object({
@@ -95,7 +96,11 @@ function TaskList() {
   });
 
   const onSubmit = (data: z.infer<typeof taskSchema>) => {
-    createTask(data, {
+    const taskData = {
+      ...data,
+      dueDate: data.dueDate ? new Date(data.dueDate) : null,
+    };
+    createTask(taskData, {
       onSuccess: () => {
         setIsOpen(false);
         form.reset();

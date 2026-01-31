@@ -1,14 +1,18 @@
 import { Shell } from "@/components/layout/Shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useUser } from "@/hooks/use-auth";
-import { useTasks } from "@/hooks/use-tasks";
-import { useRoutines } from "@/hooks/use-routines";
+import { useTasks, useUpdateTask } from "@/hooks/use-tasks";
+import { useRoutines, useRoutineCompletions, useLogRoutineCompletion } from "@/hooks/use-routines";
 import { useTransactions } from "@/hooks/use-finance";
+import { useGoals } from "@/hooks/use-goals";
+import { useEvents } from "@/hooks/use-events";
 import { useDayStatuses } from "@/hooks/use-day-statuses";
-import { format, differenceInDays, addMonths, setDate, isBefore, startOfDay } from "date-fns";
-import { ArrowUpRight, ArrowDownRight, Circle, Briefcase, Coffee, Stethoscope, Palmtree, Clock, CalendarDays, Wallet } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { useJournalEntries } from "@/hooks/use-journal";
+import { format, differenceInDays, addMonths, setDate, isBefore, startOfDay, isToday, isFuture, parseISO } from "date-fns";
+import { ArrowUpRight, ArrowDownRight, Briefcase, Coffee, Stethoscope, Palmtree, Clock, CalendarDays, Wallet, Target, BookOpen, TrendingUp, CheckCircle2, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 
 const formatCurrency = (amount: number, currency: string = "PHP") => {
   return new Intl.NumberFormat('en-US', {
@@ -21,7 +25,6 @@ const formatCurrency = (amount: number, currency: string = "PHP") => {
 
 const getNextPayday = (paydayConfig: { type: string; dates?: number[] } | null | undefined) => {
   const today = startOfDay(new Date());
-  const currentDay = today.getDate();
   const dates = paydayConfig?.dates || [15, 30];
   
   for (const payDay of dates.sort((a, b) => a - b)) {
@@ -36,11 +39,20 @@ const getNextPayday = (paydayConfig: { type: string; dates?: number[] } | null |
 };
 
 const dayStatusInfo = {
-  working: { label: "Working Day", icon: Briefcase, color: "text-blue-600" },
-  rest: { label: "Rest Day", icon: Coffee, color: "text-green-600" },
-  sick_leave: { label: "Sick Leave", icon: Stethoscope, color: "text-red-600" },
-  annual_leave: { label: "Annual Leave", icon: Palmtree, color: "text-amber-600" },
-  custom: { label: "Custom", icon: Clock, color: "text-purple-600" },
+  working: { label: "Working Day", icon: Briefcase, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800" },
+  standby: { label: "Standby", icon: Clock, color: "text-yellow-600", bg: "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800" },
+  rest: { label: "Rest Day", icon: Coffee, color: "text-green-600", bg: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" },
+  sick_leave: { label: "Sick Leave", icon: Stethoscope, color: "text-red-600", bg: "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800" },
+  annual_leave: { label: "Annual Leave", icon: Palmtree, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" },
+  custom: { label: "Custom", icon: Clock, color: "text-purple-600", bg: "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800" },
+};
+
+const moodEmojis: Record<string, string> = {
+  happy: "Happy",
+  neutral: "Neutral", 
+  sad: "Sad",
+  excited: "Excited",
+  grateful: "Grateful",
 };
 
 export default function Dashboard() {
@@ -48,16 +60,25 @@ export default function Dashboard() {
   const { data: tasks } = useTasks();
   const { data: transactions } = useTransactions();
   const { data: routines } = useRoutines();
+  const { data: goals } = useGoals();
+  const { data: events } = useEvents();
   const { data: dayStatuses } = useDayStatuses();
+  const { data: journalEntries } = useJournalEntries();
+  const { mutate: updateTask } = useUpdateTask();
+  const { mutate: logRoutineCompletion } = useLogRoutineCompletion();
   
   const today = format(new Date(), "yyyy-MM-dd");
+  const { data: todayCompletions } = useRoutineCompletions(today);
+  
   const currency = user?.currency || "PHP";
   const todayStatus = dayStatuses?.find(s => s.date === today);
   const statusInfo = dayStatusInfo[todayStatus?.status as keyof typeof dayStatusInfo] || dayStatusInfo.working;
   const StatusIcon = statusInfo.icon;
 
   const pendingTasks = tasks?.filter(t => t.status !== "done").slice(0, 5) || [];
-  const completedToday = tasks?.filter(t => t.status === "done").length || 0;
+  const totalTasks = tasks?.length || 0;
+  const completedTasks = tasks?.filter(t => t.status === "done").length || 0;
+  const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   
   const totalIncome = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
   const totalExpense = transactions?.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
@@ -69,15 +90,41 @@ export default function Dashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
 
-  const data = [
-    { name: 'Mon', value: 40 },
-    { name: 'Tue', value: 30 },
-    { name: 'Wed', value: 60 },
-    { name: 'Thu', value: 45 },
-    { name: 'Fri', value: 70 },
-    { name: 'Sat', value: 85 },
-    { name: 'Sun', value: 75 },
-  ];
+  const activeGoals = goals?.filter(g => !g.completed) || [];
+  const completedGoals = goals?.filter(g => g.completed).length || 0;
+
+  const upcomingEvents = events?.filter(e => {
+    const eventDate = new Date(e.startTime);
+    return isToday(eventDate) || isFuture(eventDate);
+  }).slice(0, 3) || [];
+
+  const latestJournalEntry = journalEntries?.[0];
+
+  const toggleTaskStatus = (taskId: number, currentStatus: string) => {
+    const newStatus = currentStatus === "done" ? "todo" : "done";
+    updateTask({ id: taskId, status: newStatus });
+  };
+
+  const isRoutineStepCompleted = (routineId: number, stepIndex: number) => {
+    const completion = todayCompletions?.find(c => c.routineId === routineId);
+    return completion?.completedSteps?.[stepIndex] || false;
+  };
+
+  const toggleRoutineStep = (routineId: number, stepIndex: number, totalSteps: number) => {
+    const completion = todayCompletions?.find(c => c.routineId === routineId);
+    const currentSteps: boolean[] = completion?.completedSteps || Array(totalSteps).fill(false);
+    
+    const newSteps = [...currentSteps];
+    newSteps[stepIndex] = !newSteps[stepIndex];
+    
+    const completedCount = newSteps.filter(Boolean).length;
+    
+    logRoutineCompletion({
+      routineId,
+      date: today,
+      completedSteps: newSteps,
+    });
+  };
 
   return (
     <Shell>
@@ -92,10 +139,7 @@ export default function Dashboard() {
           <div className="flex gap-4">
             <div className={cn(
               "px-4 py-2 rounded-xl shadow-sm border flex items-center gap-2",
-              todayStatus?.status === "rest" && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
-              todayStatus?.status === "working" && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
-              todayStatus?.status === "sick_leave" && "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800",
-              todayStatus?.status === "annual_leave" && "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800",
+              statusInfo.bg
             )} data-testid="card-today-status">
               <StatusIcon className={cn("w-5 h-5", statusInfo.color)} />
               <div>
@@ -109,7 +153,7 @@ export default function Dashboard() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="shadow-lg shadow-blue-500/5 border-l-4 border-l-blue-500 card-hover" data-testid="card-balance">
+          <Card className="shadow-lg shadow-blue-500/5 border-l-4 border-l-blue-500" data-testid="card-balance">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Wallet className="w-4 h-4" />
@@ -128,31 +172,36 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg shadow-purple-500/5 border-l-4 border-l-purple-500 card-hover" data-testid="card-tasks">
+          <Card className="shadow-lg shadow-purple-500/5 border-l-4 border-l-purple-500" data-testid="card-tasks">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Pending Tasks</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Task Progress
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{pendingTasks.length}</div>
+              <div className="text-2xl font-bold">{completedTasks}/{totalTasks}</div>
+              <Progress value={taskCompletionRate} className="h-2 mt-2" />
+              <p className="text-xs text-muted-foreground mt-1">{taskCompletionRate}% completed</p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg shadow-green-500/5 border-l-4 border-l-green-500" data-testid="card-goals">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Target className="w-4 h-4" />
+                Active Goals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{activeGoals.length}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {completedToday} completed
+                {completedGoals} completed
               </p>
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg shadow-green-500/5 border-l-4 border-l-green-500 card-hover" data-testid="card-productivity">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Productivity Score</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">85%</div>
-              <div className="h-2 w-full bg-secondary mt-2 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 w-[85%] rounded-full" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg shadow-orange-500/5 border-l-4 border-l-orange-500 card-hover" data-testid="card-payday">
+          <Card className="shadow-lg shadow-orange-500/5 border-l-4 border-l-orange-500" data-testid="card-payday">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <CalendarDays className="w-4 h-4" />
@@ -172,17 +221,29 @@ export default function Dashboard() {
           <div className="lg:col-span-2 space-y-8">
             <Card className="shadow-md">
               <CardHeader>
-                <CardTitle>Today's Focus</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
+                  Today's Focus
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {pendingTasks.map((task) => (
-                    <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors group" data-testid={`task-${task.id}`}>
-                      <button className="mt-0.5 text-muted-foreground hover:text-primary transition-colors">
-                        <Circle className="w-5 h-5" />
-                      </button>
-                      <div>
-                        <p className="font-medium group-hover:text-primary transition-colors">{task.title}</p>
+                    <div 
+                      key={task.id} 
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors group" 
+                      data-testid={`task-${task.id}`}
+                    >
+                      <Checkbox
+                        checked={task.status === "done"}
+                        onCheckedChange={() => toggleTaskStatus(task.id, task.status || "todo")}
+                        data-testid={`checkbox-task-${task.id}`}
+                      />
+                      <div className="flex-1">
+                        <p className={cn(
+                          "font-medium group-hover:text-primary transition-colors",
+                          task.status === "done" && "line-through text-muted-foreground"
+                        )}>{task.title}</p>
                         <div className="flex gap-2 mt-1">
                           <span className={cn(
                             "text-xs px-2 py-0.5 rounded-full",
@@ -192,6 +253,11 @@ export default function Dashboard() {
                           )}>
                             {task.priority}
                           </span>
+                          {task.dueDate && (
+                            <span className="text-xs text-muted-foreground">
+                              Due: {format(new Date(task.dueDate), "MMM d")}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -207,47 +273,114 @@ export default function Dashboard() {
 
             <Card className="shadow-md">
               <CardHeader>
-                <CardTitle>Productivity Trend</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5 text-primary" />
+                  Upcoming Events
+                </CardTitle>
               </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data}>
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth={3}
-                      dot={{ fill: "hsl(var(--primary))", strokeWidth: 2 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <CardContent>
+                <div className="space-y-3">
+                  {upcomingEvents.map((event) => {
+                    const eventDate = new Date(event.startTime);
+                    const daysAway = differenceInDays(eventDate, new Date());
+                    return (
+                      <div 
+                        key={event.id} 
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
+                        data-testid={`event-${event.id}`}
+                      >
+                        <div>
+                          <p className="font-medium">{event.title}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(eventDate, "EEE, MMM d 'at' h:mm a")}
+                          </p>
+                        </div>
+                        <span className={cn(
+                          "text-xs px-2 py-1 rounded-full",
+                          isToday(eventDate) ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                        )}>
+                          {isToday(eventDate) ? "Today" : `${daysAway} day${daysAway !== 1 ? 's' : ''}`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {upcomingEvents.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No upcoming events scheduled.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  Financial Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
+                    <p className="text-sm text-muted-foreground">Income</p>
+                    <p className="text-xl font-bold text-green-600">{formatCurrency(totalIncome, currency)}</p>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
+                    <p className="text-sm text-muted-foreground">Expenses</p>
+                    <p className="text-xl font-bold text-red-600">{formatCurrency(totalExpense, currency)}</p>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <p className="text-sm text-muted-foreground">Balance</p>
+                    <p className={cn("text-xl font-bold", balance >= 0 ? "text-blue-600" : "text-red-600")}>
+                      {formatCurrency(balance, currency)}
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="space-y-8">
-            <Card className="shadow-md h-full bg-gradient-to-br from-card to-secondary/20">
+            <Card className="shadow-md bg-gradient-to-br from-card to-secondary/20">
               <CardHeader>
                 <CardTitle>Daily Routines</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {routines?.map(routine => (
-                  <div key={routine.id} className="space-y-3" data-testid={`routine-${routine.id}`}>
-                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">{routine.title}</h4>
-                    <div className="space-y-2">
-                      {routine.steps.map((step, idx) => (
-                        <div key={idx} className="flex items-center gap-3">
-                          <div className="w-5 h-5 rounded border border-primary/30 flex items-center justify-center cursor-pointer hover:bg-primary/10 transition-colors">
-                          </div>
-                          <span className="text-sm">{step}</span>
-                        </div>
-                      ))}
+                {routines?.slice(0, 3).map(routine => {
+                  const completedCount = routine.steps.filter((_, idx) => 
+                    isRoutineStepCompleted(routine.id, idx)
+                  ).length;
+                  const progress = Math.round((completedCount / routine.steps.length) * 100);
+                  
+                  return (
+                    <div key={routine.id} className="space-y-3" data-testid={`routine-${routine.id}`}>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-sm">{routine.title}</h4>
+                        <span className="text-xs text-muted-foreground">{completedCount}/{routine.steps.length}</span>
+                      </div>
+                      <Progress value={progress} className="h-1.5" />
+                      <div className="space-y-2">
+                        {routine.steps.map((step, idx) => {
+                          const isCompleted = isRoutineStepCompleted(routine.id, idx);
+                          return (
+                            <div key={idx} className="flex items-center gap-3">
+                              <Checkbox
+                                checked={isCompleted}
+                                onCheckedChange={() => toggleRoutineStep(routine.id, idx, routine.steps.length)}
+                                data-testid={`checkbox-routine-${routine.id}-step-${idx}`}
+                              />
+                              <span className={cn(
+                                "text-sm",
+                                isCompleted && "line-through text-muted-foreground"
+                              )}>{step}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {(!routines || routines.length === 0) && (
                   <div className="text-center py-8 text-muted-foreground">
                     No routines set up yet.
@@ -255,6 +388,68 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="w-5 h-5 text-primary" />
+                  Active Goals
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {activeGoals.slice(0, 3).map(goal => {
+                  const milestones = goal.milestones || [];
+                  const completedMilestones = milestones.filter(m => m.completed).length;
+                  const progress = milestones.length > 0 
+                    ? Math.round((completedMilestones / milestones.length) * 100) 
+                    : 0;
+                  
+                  return (
+                    <div key={goal.id} className="space-y-2" data-testid={`goal-${goal.id}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">{goal.title}</p>
+                        <span className="text-xs text-muted-foreground">{progress}%</span>
+                      </div>
+                      <Progress value={progress} className="h-1.5" />
+                      {goal.targetDate && (
+                        <p className="text-xs text-muted-foreground">
+                          Target: {format(new Date(goal.targetDate), "MMM d, yyyy")}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+                {activeGoals.length === 0 && (
+                  <div className="text-center py-4 text-muted-foreground text-sm">
+                    No active goals.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {latestJournalEntry && (
+              <Card className="shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-primary" />
+                    Latest Journal
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(latestJournalEntry.date), "EEEE, MMM d")}
+                      </p>
+                      <span className="text-sm">
+                        {latestJournalEntry.mood ? (moodEmojis[latestJournalEntry.mood] || latestJournalEntry.mood) : "No mood"}
+                      </span>
+                    </div>
+                    <p className="text-sm line-clamp-3">{latestJournalEntry.content}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
