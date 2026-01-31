@@ -84,8 +84,10 @@ export default function Finance() {
 
 function TransactionsView() {
   const { data: transactions } = useTransactions();
+  const { data: user } = useUser();
   const { mutate: createTransaction } = useCreateTransaction();
   const [isOpen, setIsOpen] = useState(false);
+  const currency = user?.currency || "PHP";
 
   const form = useForm<z.infer<typeof transactionSchema>>({
     resolver: zodResolver(transactionSchema),
@@ -165,7 +167,7 @@ function TransactionsView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Total Income</p>
-                <h3 className="text-3xl font-bold mt-2">${income.toLocaleString()}</h3>
+                <h3 className="text-3xl font-bold mt-2">{formatCurrency(income, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <TrendingUp className="w-6 h-6 text-white" />
@@ -179,7 +181,7 @@ function TransactionsView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Total Expenses</p>
-                <h3 className="text-3xl font-bold mt-2">${expense.toLocaleString()}</h3>
+                <h3 className="text-3xl font-bold mt-2">{formatCurrency(expense, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <TrendingDown className="w-6 h-6 text-white" />
@@ -193,7 +195,7 @@ function TransactionsView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Net Balance</p>
-                <h3 className="text-3xl font-bold mt-2">${(income - expense).toLocaleString()}</h3>
+                <h3 className="text-3xl font-bold mt-2">{formatCurrency(income - expense, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <Wallet className="w-6 h-6 text-white" />
@@ -223,7 +225,7 @@ function TransactionsView() {
                       </div>
                     </div>
                     <span className={`font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                      {t.type === 'income' ? '+' : '-'}${Number(t.amount).toLocaleString()}
+                      {t.type === 'income' ? '+' : '-'}{formatCurrency(Number(t.amount), currency)}
                     </span>
                   </div>
                 ))}
@@ -250,11 +252,13 @@ function TransactionsView() {
                       data={categoryData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
+                      innerRadius={40}
+                      outerRadius={70}
                       fill="#8884d8"
-                      paddingAngle={5}
+                      paddingAngle={2}
                       dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      labelLine={true}
                     >
                       {categoryData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -286,8 +290,10 @@ function TransactionsView() {
 
 function DebtsView() {
   const { data: debts } = useDebts();
+  const { data: user } = useUser();
   const { mutate: createDebt } = useCreateDebt();
   const [isOpen, setIsOpen] = useState(false);
+  const currency = user?.currency || "PHP";
 
   const form = useForm<z.infer<typeof debtSchema>>({
     resolver: zodResolver(debtSchema),
@@ -323,15 +329,15 @@ function DebtsView() {
         <div className="flex gap-8">
           <div>
             <p className="text-sm text-muted-foreground">Total Debt</p>
-            <p className="text-2xl font-bold">${totalDebt.toLocaleString()}</p>
+            <p className="text-2xl font-bold">{formatCurrency(totalDebt, currency)}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Paid Off</p>
-            <p className="text-2xl font-bold text-green-600">${totalPaid.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid, currency)}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Remaining</p>
-            <p className="text-2xl font-bold text-red-600">${totalRemaining.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-red-600">{formatCurrency(totalRemaining, currency)}</p>
           </div>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -412,11 +418,11 @@ function DebtsView() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total</span>
-                    <span className="font-medium">${Number(debt.totalAmount).toLocaleString()}</span>
+                    <span className="font-medium">{formatCurrency(Number(debt.totalAmount), currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Remaining</span>
-                    <span className="font-medium text-red-600">${Number(debt.remainingAmount).toLocaleString()}</span>
+                    <span className="font-medium text-red-600">{formatCurrency(Number(debt.remainingAmount), currency)}</span>
                   </div>
                   {debt.dueDate && (
                     <div className="flex justify-between">
@@ -442,8 +448,10 @@ function DebtsView() {
 
 function SavingsView() {
   const { data: savings } = useSavingsGoals();
+  const { data: user } = useUser();
   const { mutate: createSavings } = useCreateSavingsGoal();
   const [isOpen, setIsOpen] = useState(false);
+  const currency = user?.currency || "PHP";
 
   const form = useForm<z.infer<typeof savingsSchema>>({
     resolver: zodResolver(savingsSchema),
@@ -476,11 +484,11 @@ function SavingsView() {
         <div className="flex gap-8">
           <div>
             <p className="text-sm text-muted-foreground">Total Goals</p>
-            <p className="text-2xl font-bold">${totalTarget.toLocaleString()}</p>
+            <p className="text-2xl font-bold">{formatCurrency(totalTarget, currency)}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Total Saved</p>
-            <p className="text-2xl font-bold text-green-600">${totalSaved.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-green-600">{formatCurrency(totalSaved, currency)}</p>
           </div>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -541,8 +549,8 @@ function SavingsView() {
                 </div>
                 <div className="space-y-2 text-sm text-center">
                   <div>
-                    <span className="text-2xl font-bold">${Number(goal.currentAmount || 0).toLocaleString()}</span>
-                    <span className="text-muted-foreground"> / ${Number(goal.targetAmount).toLocaleString()}</span>
+                    <span className="text-2xl font-bold">{formatCurrency(Number(goal.currentAmount || 0), currency)}</span>
+                    <span className="text-muted-foreground"> / {formatCurrency(Number(goal.targetAmount), currency)}</span>
                   </div>
                   <Progress value={progress} className="h-2" />
                 </div>
@@ -578,7 +586,7 @@ function FinanceCalendarView() {
   
   const currency = user?.currency || "PHP";
   const rawPaydayDates = user?.paydayConfig?.dates || [15, 30];
-  const paydayDates = [...new Set(rawPaydayDates)].filter(d => d >= 1 && d <= 31).sort((a, b) => a - b);
+  const paydayDates = Array.from(new Set(rawPaydayDates)).filter(d => d >= 1 && d <= 31).sort((a, b) => a - b);
   
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
