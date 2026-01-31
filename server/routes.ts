@@ -335,5 +335,9 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Seed DB on startup if needed
+  // In a real app this might be a separate script, but for this demo:
+  import("./seed").then(m => m.seedDatabase()).catch(console.error);
+
   return httpServer;
 }
