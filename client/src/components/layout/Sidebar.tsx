@@ -8,7 +8,8 @@ import {
   PieChart, 
   LogOut,
   User,
-  Settings
+  Settings,
+  Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLogout, useUser } from "@/hooks/use-auth";
@@ -22,6 +23,7 @@ const menuItems = [
   { icon: Book, label: "Journal", href: "/journal", testId: "nav-journal" },
   { icon: PieChart, label: "Insights", href: "/insights", testId: "nav-insights" },
   { icon: Settings, label: "Settings", href: "/settings", testId: "nav-settings" },
+  { icon: Info, label: "About", href: "/about", testId: "nav-about" },
 ];
 
 export function Sidebar() {
@@ -33,7 +35,7 @@ export function Sidebar() {
     <div className="w-64 border-r border-border/50 bg-card/50 backdrop-blur-xl h-screen flex flex-col fixed left-0 top-0 z-50 shadow-xl shadow-primary/5">
       <div className="p-6">
         <h1 className="text-2xl font-bold bg-gradient-to-br from-primary to-blue-600 bg-clip-text text-transparent font-display tracking-tight" data-testid="text-app-title">
-          Life OS
+          Life OS Hub
         </h1>
       </div>
 

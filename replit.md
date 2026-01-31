@@ -1,8 +1,12 @@
-# Life OS - All-in-One Productivity & Finance Web App
+# Life OS Hub - Personal Life Management System
 
 ## Overview
 
-Life OS is a comprehensive personal management application combining productivity tools, financial tracking, journaling, and insights into a unified dashboard. The app provides multi-user accounts with private data isolation, allowing users to manage routines, tasks, goals, events, transactions, debts, savings goals, and journal entries all in one place.
+Life OS Hub is a personal operating system for life — a unified platform designed to help individuals manage time, finances, habits, goals, and personal growth in one place. Created by **Edric Kristian L. Gantes**, the application provides multi-user accounts with private data isolation.
+
+**What "Life OS" Means**: Life Operating System — just as a computer's OS organizes hardware and software, Life OS Hub organizes the key domains of life: Time, Money, Energy, Habits, and Goals. It's about alignment, sustainability, and self-direction.
+
+© 2026 Edric Kristian L. Gantes. All rights reserved.
 
 Key features include:
 - **Dashboard** with widgets for time, weather, upcoming tasks, and financial snapshots

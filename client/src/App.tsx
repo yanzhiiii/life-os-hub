@@ -15,6 +15,7 @@ import CalendarPage from "@/pages/calendar";
 import JournalPage from "@/pages/journal";
 import InsightsPage from "@/pages/insights";
 import SettingsPage from "@/pages/settings";
+import AboutPage from "@/pages/about";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -59,6 +60,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <ProtectedRoute component={SettingsPage} />
+      </Route>
+      <Route path="/about">
+        <ProtectedRoute component={AboutPage} />
       </Route>
 
       <Route component={NotFound} />

@@ -1,0 +1,61 @@
+Rebrand this project as **Life OS Hub**, a personal life management system.
+
+GLOBAL REBRANDING RULES:
+- Do NOT change any business logic, database logic, routes, schemas, or API behavior.
+- This is a branding, documentation, and UI content update ONLY.
+- Preserve all existing functionality.
+
+COPYRIGHT & OWNERSHIP:
+- Add a footer or global UI text:
+  "© 2026 Edric Kristian L. Gantes. All rights reserved."
+- Add this copyright notice wherever appropriate (footer, About section, legal/help section).
+
+DEVELOPER ATTRIBUTION:
+- Add a visible section titled **Developer**
+- Display:
+  Name: Edric Kristian L. Gantes
+  Role: Developer & Creator
+
+ABOUT / WHY THIS EXISTS:
+Create an **About Life OS Hub** section with the following content (paraphrase professionally, do not copy verbatim):
+
+"Life OS Hub is a personal operating system for life — a unified platform designed to help individuals manage time, finances, habits, goals, and personal growth in one place. It was created to reduce fragmentation across productivity tools and provide clarity, structure, and intentional living."
+
+WHY I BUILT THIS (PERSONAL STATEMENT):
+Add a section titled **Why Life OS Hub Was Created** explaining:
+
+- It was built by Edric Kristian L. Gantes as a response to feeling overwhelmed by fragmented tools (calendars, finance trackers, notes, habit apps).
+- The goal is to treat life like a system that can be observed, improved, and maintained — similar to an operating system.
+- Emphasize intentional living, self-awareness, and long-term growth.
+- Tone: calm, reflective, professional, human.
+
+MEANING OF “LIFE OS”:
+Add a section titled **What “Life OS” Means** explaining:
+
+- “Life OS” stands for Life Operating System.
+- Just as an OS organizes hardware, Life OS Hub organizes life domains:
+  • Time
+  • Money
+  • Energy
+  • Habits
+  • Goals
+- It is not about optimization for productivity alone, but for alignment, sustainability, and self-direction.
+
+UI PLACEMENT:
+- Preferred locations:
+  • Settings page
+  • About page
+  • Footer modal / info panel
+- If no About page exists, create one and link it in navigation.
+
+STYLE & TONE:
+- Minimal
+- Professional
+- Human and reflective, not marketing-heavy
+- Avoid buzzwords
+- Avoid corporate tone
+
+FINAL CHECK:
+- No references to Replit as the creator.
+- Branding must clearly reflect a personal, independent project.
+- Codebase must still compile and run exactly as before.

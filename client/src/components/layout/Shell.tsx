@@ -15,6 +15,9 @@ export function Shell({ children }: ShellProps) {
         <main className="p-6 md:p-10 max-w-7xl mx-auto animate-in fade-in duration-500">
           {children}
         </main>
+        <footer className="text-center text-xs text-muted-foreground py-4 border-t border-border/30">
+          © 2026 Edric Kristian L. Gantes. All rights reserved.
+        </footer>
       </ScrollArea>
     </div>
   );

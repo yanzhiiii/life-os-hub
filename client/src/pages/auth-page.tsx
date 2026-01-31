@@ -60,21 +60,21 @@ export default function AuthPage() {
         <div className="relative z-10">
           <div className="flex items-center gap-3">
             <LayoutDashboard className="w-8 h-8" />
-            <span className="text-2xl font-bold font-display">Life OS</span>
+            <span className="text-2xl font-bold font-display">Life OS Hub</span>
           </div>
         </div>
 
         <div className="relative z-10 max-w-lg">
           <h1 className="text-5xl font-bold font-display leading-tight mb-6">
-            Master your life, <br />one day at a time.
+            Your life, organized.
           </h1>
           <p className="text-xl opacity-90 leading-relaxed">
-            The all-in-one workspace for your routines, tasks, goals, finance, and personal growth.
+            A personal operating system for managing time, finances, habits, goals, and growth — all in one place.
           </p>
         </div>
 
         <div className="relative z-10 text-sm opacity-60">
-          © 2025 Life OS Inc.
+          © 2026 Edric Kristian L. Gantes. All rights reserved.
         </div>
       </div>
 
@@ -181,6 +181,9 @@ export default function AuthPage() {
             </Tabs>
           </CardContent>
         </Card>
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          © 2026 Edric Kristian L. Gantes. All rights reserved.
+        </p>
       </div>
     </div>
   );
