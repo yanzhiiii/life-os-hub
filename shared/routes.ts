@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   insertUserSchema,
+  updateUserSettingsSchema,
   insertRoutineSchema,
   insertRoutineCompletionSchema,
   insertGoalSchema,
@@ -10,6 +11,7 @@ import {
   insertDebtSchema,
   insertSavingsGoalSchema,
   insertJournalEntrySchema,
+  insertDayStatusSchema,
   users,
   routines,
   routineCompletions,
@@ -19,7 +21,8 @@ import {
   transactions,
   debts,
   savingsGoals,
-  journalEntries
+  journalEntries,
+  dayStatuses
 } from './schema';
 
 // ============================================
@@ -78,6 +81,33 @@ export const api = {
         200: z.custom<typeof users.$inferSelect>(),
         401: errorSchemas.unauthorized,
       },
+    },
+    updateSettings: {
+      method: 'PATCH' as const,
+      path: '/api/user/settings',
+      input: updateUserSettingsSchema,
+      responses: {
+        200: z.custom<typeof users.$inferSelect>(),
+        401: errorSchemas.unauthorized,
+      },
+    },
+  },
+  dayStatuses: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/day-statuses',
+      responses: { 200: z.array(z.custom<typeof dayStatuses.$inferSelect>()) },
+    },
+    getByDate: {
+      method: 'GET' as const,
+      path: '/api/day-statuses/:date',
+      responses: { 200: z.custom<typeof dayStatuses.$inferSelect>().nullable() },
+    },
+    upsert: {
+      method: 'PUT' as const,
+      path: '/api/day-statuses/:date',
+      input: insertDayStatusSchema.omit({ date: true }),
+      responses: { 200: z.custom<typeof dayStatuses.$inferSelect>() },
     },
   },
   routines: {

@@ -1,0 +1,299 @@
+PROJECT: ALL-IN-ONE LIFE OS (PRODUCTIVITY + FINANCE + JOURNAL)
+
+PURPOSE:
+Build a comprehensive personal “Life OS” web application that helps users manage productivity, finances, mental health, and daily planning in one cohesive system.
+
+This is NOT a simple todo app.
+This is a private, decision-support system designed for daily use.
+
+=====================================================
+GLOBAL REQUIREMENTS
+=====================================================
+
+- Use Next.js (App Router preferred)
+- Clean, modern, calm UI (dark/light mode)
+- Responsive (desktop-first, mobile-friendly)
+- Email/password authentication
+- Multi-user support with strict per-user data isolation
+- Persist all data per user in database
+- Add TODO comments if any part is simplified for performance
+
+=====================================================
+GLOBAL USER SETTINGS (MUST PERSIST)
+=====================================================
+
+Create a Settings module that persists per user:
+
+Settings fields:
+- currencyCode (default: PHP)
+- locale (default: en-PH)
+- theme (light | dark)
+- payoutScheduleType:
+  - monthly
+  - semiMonthly
+  - custom
+- monthlyPaydayDay (number)
+- semiMonthlyDays (array, e.g. [1,15])
+- customPaydays (array, e.g. [5,20])
+- workingDaysConfig:
+  - working
+  - rest
+  - sickLeave
+  - annualLeave
+  - customLeave (custom label + color)
+
+REQUIREMENTS:
+- Settings must save and load correctly
+- Currency must instantly reflect across the entire app
+- Use Intl.NumberFormat everywhere (NO hardcoded currency)
+- Payday countdown must use these settings globally
+
+=====================================================
+NAVIGATION STRUCTURE
+=====================================================
+
+Main navigation:
+- Dashboard
+- Productivity
+- Calendar (Plans)
+- Finance
+- Journal
+- Insights
+- Settings
+
+=====================================================
+DASHBOARD (COMMAND CENTER)
+=====================================================
+
+Dashboard widgets:
+
+- Live current time
+- Weather widget (API or placeholder if unavailable)
+- Countdown to next salary payout (based on settings)
+- Today’s working status (Working / Rest / Leave)
+- Today’s routines checklist
+- Tasks due today
+- Finance snapshot:
+  - current balance
+  - projected balance until next payout
+- Quick add buttons:
+  - Add Task
+  - Add Expense
+  - Add Journal Entry
+  - Add Event
+
+=====================================================
+PRODUCTIVITY MODULE
+=====================================================
+
+A) ROUTINES
+- Users define routine templates (e.g. Morning, Night)
+- Each routine has checklist steps
+- Users mark steps complete per day
+- Track streaks and completion %
+
+B) TASKS & GOALS
+Tasks:
+- title
+- due date
+- priority
+- status (todo, completed)
+- tags
+- optional goal link
+
+Goals:
+- title
+- target date
+- milestones or checklist
+- progress auto-calculated from linked tasks
+
+Views:
+- Today
+- Upcoming
+- Completed
+
+=====================================================
+WORKDAY / LEAVE TOGGLE (IMPORTANT)
+=====================================================
+
+Add a Day Status system:
+
+Each calendar day can be marked as:
+- Working Day
+- Rest Day
+- Sick Leave
+- Annual Leave
+- Custom Leave (user-defined label + color)
+
+Requirements:
+- Click/tap day to toggle status
+- Day status visible in calendar and dashboard
+- Track statistics:
+  - total working days
+  - leave usage
+- Integrate with Insights (productivity & finance)
+
+=====================================================
+PLANS CALENDAR (FUTURE ACTIVITIES)
+=====================================================
+
+Calendar features:
+- Month view
+- Events with:
+  - title
+  - start/end datetime
+  - category
+  - notes
+  - location (optional)
+
+Enhancements:
+- Each event shows “X days to go” or Today/Tomorrow/Overdue
+- Improved UI with colored event chips
+- Clicking a day opens event list modal
+- Upcoming events timeline (next 14–30 days)
+- Optional recurring events
+
+=====================================================
+FINANCE MODULE (ANTIGASTADOR CORE)
+=====================================================
+
+A) TRANSACTIONS
+- Income & expense entries:
+  - type
+  - amount
+  - date
+  - category
+  - note
+- Recurrence:
+  - once
+  - daily
+  - weekly
+  - biweekly
+  - monthly
+  - every N days
+  - semimonthly (for payday)
+
+B) FINANCE CALENDAR TAB
+- Monthly calendar grid
+- Each day shows:
+  - income
+  - expense
+  - net
+  - running projected balance
+- Color-coded days (safe / tight / negative)
+- Click day → modal with breakdown
+- Support “starting balance”
+- Support “actual balance override” for recalculations
+
+C) PAYOUT-PERIOD ANALYTICS (CRITICAL)
+Support:
+- Monthly payout
+- Semi-monthly payout
+- Custom payout (e.g. 5th & 20th)
+
+For custom 5/20:
+- Period A: 5th–19th
+- Period B: 20th–4th (next month)
+
+Display:
+- income
+- expenses
+- net
+- top expense categories
+- charts comparing periods
+
+=====================================================
+DEBT TRACKER
+=====================================================
+
+Debt fields:
+- name
+- total amount
+- remaining balance
+- interest (optional)
+- due date
+
+Features:
+- Record payments
+- Payment history timeline
+- Visual metaphor (choose one):
+  - Melting Ice Block
+  - Breaking Chains
+- Visual decreases as debt reduces
+- Celebrate payoff completion
+
+=====================================================
+SAVINGS GOALS (JAR UI)
+=====================================================
+
+Savings goals:
+- name
+- target amount
+- current saved amount
+
+Features:
+- Jar fill animation
+- Deposit history
+- Projected completion date
+- Multiple simultaneous goals
+
+=====================================================
+JOURNAL MODULE
+=====================================================
+
+Journal entries:
+- one entry per day
+- content
+- mood (scale or emoji)
+- optional tags
+
+Archive:
+- Year → Month → Day navigation
+- Calendar view with mood colors
+- Search & filters (mood, tags)
+
+=====================================================
+INSIGHTS MODULE
+=====================================================
+
+Finance insights:
+- income vs expense trends
+- category breakdown
+- burn rate
+- forecast vs actual
+- payout-to-payout comparison
+
+Productivity insights:
+- tasks completed per week
+- routine streaks
+- workload by day status
+
+Mood insights:
+- mood over time
+- most common moods
+- mood calendar
+
+Cross insights:
+- mood vs spending
+- mood vs productivity
+- leave days vs spending/productivity
+
+=====================================================
+FINAL POLISH & UX
+=====================================================
+
+- Unified design system
+- Smooth animations (subtle)
+- Empty states & loading states
+- Toast notifications
+- Confirmation dialogs
+- Mobile responsiveness
+- Ensure persistence across reload/login/logout
+- Refactor shared logic into utilities
+
+END GOAL:
+A calm, powerful Life OS that helps the user:
+- know their day
+- understand their money before spending
+- stay productive without pressure
+- reflect and improve over time

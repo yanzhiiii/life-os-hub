@@ -1,7 +1,7 @@
 import {
   users, routines, routineCompletions, goals, tasks, events,
-  transactions, debts, savingsGoals, journalEntries,
-  type User, type InsertUser,
+  transactions, debts, savingsGoals, journalEntries, dayStatuses,
+  type User, type InsertUser, type UpdateUserSettings,
   type Routine, type InsertRoutine,
   type RoutineCompletion, type InsertRoutineCompletion,
   type Goal, type InsertGoal,
@@ -10,7 +10,8 @@ import {
   type Transaction, type InsertTransaction,
   type Debt, type InsertDebt,
   type SavingsGoal, type InsertSavingsGoal,
-  type JournalEntry, type InsertJournalEntry
+  type JournalEntry, type InsertJournalEntry,
+  type DayStatus, type InsertDayStatus
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -20,6 +21,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserSettings(id: number, settings: UpdateUserSettings): Promise<User | undefined>;
 
   // Routines
   getRoutines(userId: number): Promise<Routine[]>;
@@ -69,6 +71,11 @@ export interface IStorage {
   createJournalEntry(userId: number, entry: InsertJournalEntry): Promise<JournalEntry>;
   updateJournalEntry(id: number, entry: Partial<InsertJournalEntry>): Promise<JournalEntry | undefined>;
   deleteJournalEntry(id: number): Promise<void>;
+
+  // Day Statuses
+  getDayStatuses(userId: number): Promise<DayStatus[]>;
+  getDayStatusByDate(userId: number, date: string): Promise<DayStatus | undefined>;
+  upsertDayStatus(userId: number, date: string, status: Partial<InsertDayStatus>): Promise<DayStatus>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -86,6 +93,11 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async updateUserSettings(id: number, settings: UpdateUserSettings): Promise<User | undefined> {
+    const [updated] = await db.update(users).set(settings).where(eq(users.id, id)).returning();
+    return updated;
   }
 
   // Routines
@@ -266,6 +278,33 @@ export class DatabaseStorage implements IStorage {
 
   async deleteJournalEntry(id: number): Promise<void> {
     await db.delete(journalEntries).where(eq(journalEntries.id, id));
+  }
+
+  // Day Statuses
+  async getDayStatuses(userId: number): Promise<DayStatus[]> {
+    return db.select().from(dayStatuses).where(eq(dayStatuses.userId, userId));
+  }
+
+  async getDayStatusByDate(userId: number, date: string): Promise<DayStatus | undefined> {
+    const [status] = await db.select().from(dayStatuses)
+      .where(and(eq(dayStatuses.userId, userId), eq(dayStatuses.date, date)));
+    return status;
+  }
+
+  async upsertDayStatus(userId: number, date: string, status: Partial<InsertDayStatus>): Promise<DayStatus> {
+    const existing = await this.getDayStatusByDate(userId, date);
+    if (existing) {
+      const [updated] = await db.update(dayStatuses)
+        .set(status)
+        .where(eq(dayStatuses.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(dayStatuses)
+        .values({ ...status, userId, date, status: status.status || "working" })
+        .returning();
+      return created;
+    }
   }
 }
 

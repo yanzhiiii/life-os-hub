@@ -106,6 +106,16 @@ export const journalEntries = pgTable("journal_entries", {
   mood: text("mood"), // happy, neutral, sad, etc.
 });
 
+// === DAY STATUSES (Workday/Leave Tracking) ===
+export const dayStatuses = pgTable("day_statuses", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  status: text("status").notNull().default("working"), // working, rest, sick_leave, annual_leave, custom
+  customLabel: text("custom_label"), // For custom leave types
+  color: text("color"), // Optional color for custom status
+});
+
 // === RELATIONS ===
 export const routinesRelations = relations(routines, ({ many }) => ({
   completions: many(routineCompletions),
@@ -132,6 +142,15 @@ export const goalsRelations = relations(goals, ({ many }) => ({
 
 // === SCHEMAS ===
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+export const updateUserSettingsSchema = z.object({
+  displayName: z.string().optional(),
+  currency: z.string().optional(),
+  paydayConfig: z.object({
+    type: z.enum(["fixed", "custom", "monthly", "semiMonthly"]),
+    dates: z.array(z.number()).optional(),
+    nextDate: z.string().optional(),
+  }).optional(),
+});
 export const insertRoutineSchema = createInsertSchema(routines).omit({ id: true, userId: true });
 export const insertRoutineCompletionSchema = createInsertSchema(routineCompletions).omit({ id: true });
 export const insertGoalSchema = createInsertSchema(goals).omit({ id: true, userId: true });
@@ -141,6 +160,7 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({ i
 export const insertDebtSchema = createInsertSchema(debts).omit({ id: true, userId: true });
 export const insertSavingsGoalSchema = createInsertSchema(savingsGoals).omit({ id: true, userId: true });
 export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit({ id: true, userId: true });
+export const insertDayStatusSchema = createInsertSchema(dayStatuses).omit({ id: true, userId: true });
 
 // === TYPES ===
 export type User = typeof users.$inferSelect;
@@ -164,3 +184,6 @@ export type SavingsGoal = typeof savingsGoals.$inferSelect;
 export type InsertSavingsGoal = z.infer<typeof insertSavingsGoalSchema>;
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type InsertJournalEntry = z.infer<typeof insertJournalEntrySchema>;
+export type DayStatus = typeof dayStatuses.$inferSelect;
+export type InsertDayStatus = z.infer<typeof insertDayStatusSchema>;
+export type UpdateUserSettings = z.infer<typeof updateUserSettingsSchema>;

@@ -127,6 +127,13 @@ export async function registerRoutes(
     }
   });
 
+  app.patch(api.auth.updateSettings.path, isAuthenticated, async (req, res) => {
+    const input = api.auth.updateSettings.input.parse(req.body);
+    const updated = await storage.updateUserSettings(getUserId(req), input);
+    if (!updated) return res.status(404).json({ message: "User not found" });
+    res.json(updated);
+  });
+
   // Protected Routes Wrapper
   const protectedRouter = (fn: Function) => async (req: Request, res: Response, next: NextFunction) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
@@ -333,6 +340,23 @@ export async function registerRoutes(
   app.delete(api.journal.delete.path, isAuthenticated, async (req, res) => {
     await storage.deleteJournalEntry(Number(req.params.id));
     res.status(204).send();
+  });
+
+  // Day Statuses
+  app.get(api.dayStatuses.list.path, isAuthenticated, async (req, res) => {
+    const statuses = await storage.getDayStatuses(getUserId(req));
+    res.json(statuses);
+  });
+
+  app.get(api.dayStatuses.getByDate.path, isAuthenticated, async (req, res) => {
+    const status = await storage.getDayStatusByDate(getUserId(req), req.params.date as string);
+    res.json(status || null);
+  });
+
+  app.put(api.dayStatuses.upsert.path, isAuthenticated, async (req, res) => {
+    const input = api.dayStatuses.upsert.input.parse(req.body);
+    const status = await storage.upsertDayStatus(getUserId(req), req.params.date as string, input);
+    res.json(status);
   });
 
   // Seed DB on startup if needed

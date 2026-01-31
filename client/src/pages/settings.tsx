@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Shell } from "@/components/layout/Shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,14 +7,30 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useUser, useLogout } from "@/hooks/use-auth";
-import { User, CreditCard, Bell, Palette, LogOut, Save } from "lucide-react";
+import { useUpdateUserSettings } from "@/hooks/use-user-settings";
+import { User, CreditCard, Palette, LogOut, Save, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
+  const updateSettings = useUpdateUserSettings();
   const { toast } = useToast();
+  
   const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark'));
+  const [displayName, setDisplayName] = useState("");
+  const [currency, setCurrency] = useState("PHP");
+  const [paydayType, setPaydayType] = useState<"fixed" | "custom" | "monthly" | "semiMonthly">("fixed");
+  const [payDates, setPayDates] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.displayName || "");
+      setCurrency(user.currency || "PHP");
+      setPaydayType(user.paydayConfig?.type || "fixed");
+      setPayDates(user.paydayConfig?.dates?.join(", ") || "15, 30");
+    }
+  }, [user]);
 
   const toggleDarkMode = () => {
     if (isDarkMode) {
@@ -27,9 +43,29 @@ export default function SettingsPage() {
   };
 
   const handleSave = () => {
-    toast({
-      title: "Settings saved",
-      description: "Your preferences have been updated successfully.",
+    const dates = payDates.split(",").map(d => parseInt(d.trim())).filter(d => !isNaN(d));
+    
+    updateSettings.mutate({
+      displayName: displayName || undefined,
+      currency,
+      paydayConfig: {
+        type: paydayType,
+        dates: dates.length > 0 ? dates : undefined,
+      },
+    }, {
+      onSuccess: () => {
+        toast({
+          title: "Settings saved",
+          description: "Your preferences have been updated successfully.",
+        });
+      },
+      onError: () => {
+        toast({
+          title: "Error",
+          description: "Failed to save settings. Please try again.",
+          variant: "destructive",
+        });
+      }
     });
   };
 
@@ -42,7 +78,6 @@ export default function SettingsPage() {
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* Profile Settings */}
           <Card className="shadow-lg">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -71,7 +106,8 @@ export default function SettingsPage() {
                   <Label htmlFor="displayName">Display Name</Label>
                   <Input 
                     id="displayName" 
-                    defaultValue={user?.displayName || ""} 
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Your display name"
                     data-testid="input-display-name"
                   />
@@ -80,7 +116,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Payday Settings */}
           <Card className="shadow-lg">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -97,12 +132,14 @@ export default function SettingsPage() {
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label>Payday Type</Label>
-                  <Select defaultValue="fixed">
+                  <Select value={paydayType} onValueChange={(v) => setPaydayType(v as any)}>
                     <SelectTrigger data-testid="select-payday-type">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="fixed">Fixed Dates (e.g., 15th & 30th)</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="semiMonthly">Semi-Monthly</SelectItem>
                       <SelectItem value="custom">Custom Schedule</SelectItem>
                     </SelectContent>
                   </Select>
@@ -111,7 +148,8 @@ export default function SettingsPage() {
                   <Label>Pay Dates</Label>
                   <Input 
                     placeholder="e.g., 15, 30" 
-                    defaultValue={user?.paydayConfig?.dates?.join(", ")}
+                    value={payDates}
+                    onChange={(e) => setPayDates(e.target.value)}
                     data-testid="input-pay-dates"
                   />
                   <p className="text-xs text-muted-foreground">Comma-separated day numbers</p>
@@ -120,7 +158,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Currency & Regional */}
           <Card className="shadow-lg">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -136,7 +173,7 @@ export default function SettingsPage() {
             <CardContent>
               <div className="max-w-xs space-y-2">
                 <Label>Currency</Label>
-                <Select defaultValue={user?.currency || "PHP"}>
+                <Select value={currency} onValueChange={setCurrency}>
                   <SelectTrigger data-testid="select-currency">
                     <SelectValue placeholder="Select currency" />
                   </SelectTrigger>
@@ -152,7 +189,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Appearance */}
           <Card className="shadow-lg">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -181,14 +217,22 @@ export default function SettingsPage() {
           </Card>
 
           <div className="flex justify-end">
-            <Button onClick={handleSave} className="px-8" data-testid="button-save-settings">
-              <Save className="w-4 h-4 mr-2" />
+            <Button 
+              onClick={handleSave} 
+              className="px-8" 
+              disabled={updateSettings.isPending}
+              data-testid="button-save-settings"
+            >
+              {updateSettings.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
               Save Changes
             </Button>
           </div>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
           <Card className="shadow-lg">
             <CardHeader>
