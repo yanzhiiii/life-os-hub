@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useTasks, useCreateTask, useDeleteTask, useUpdateTask } from "@/hooks/use-tasks";
-import { useRoutines, useCreateRoutine, useRoutineCompletions, useLogRoutineCompletion } from "@/hooks/use-routines";
+import { useRoutines, useCreateRoutine, useDeleteRoutine, useRoutineCompletions, useLogRoutineCompletion } from "@/hooks/use-routines";
 import { useGoals, useCreateGoal, useUpdateGoal, useDeleteGoal } from "@/hooks/use-goals";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -223,6 +223,7 @@ function TaskList() {
 function RoutineList() {
   const { data: routines, isLoading } = useRoutines();
   const { mutate: createRoutine } = useCreateRoutine();
+  const { mutate: deleteRoutine } = useDeleteRoutine();
   const { mutate: logCompletion } = useLogRoutineCompletion();
   const today = format(new Date(), "yyyy-MM-dd");
   const { data: completions } = useRoutineCompletions(today);
@@ -310,10 +311,10 @@ function RoutineList() {
           return (
             <Card key={routine.id} className="shadow-lg" data-testid={`card-routine-${routine.id}`}>
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className={cn(
-                      "p-2 rounded-lg",
+                      "p-2 rounded-lg shrink-0",
                       progress === 100 ? "bg-green-100 dark:bg-green-900/30" : "bg-primary/10"
                     )}>
                       <Flame className={cn(
@@ -321,14 +322,25 @@ function RoutineList() {
                         progress === 100 ? "text-green-600" : "text-primary"
                       )} />
                     </div>
-                    <div>
-                      <CardTitle className="text-lg">{routine.title}</CardTitle>
+                    <div className="min-w-0">
+                      <CardTitle className="text-lg truncate">{routine.title}</CardTitle>
                       <p className="text-sm text-muted-foreground capitalize">{routine.frequency}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {completedCount}/{routine.steps.length}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {completedCount}/{routine.steps.length}
+                    </span>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteRoutine(routine.id)}
+                      data-testid={`button-delete-routine-${routine.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
                 <Progress value={progress} className="h-2 mt-3" />
               </CardHeader>
