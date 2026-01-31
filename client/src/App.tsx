@@ -11,6 +11,10 @@ import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
 import Productivity from "@/pages/productivity";
 import Finance from "@/pages/finance";
+import CalendarPage from "@/pages/calendar";
+import JournalPage from "@/pages/journal";
+import InsightsPage from "@/pages/insights";
+import SettingsPage from "@/pages/settings";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { data: user, isLoading } = useUser();
@@ -33,10 +37,8 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function Router() {
   return (
     <Switch>
-      {/* Public Routes */}
       <Route path="/auth" component={AuthPage} />
       
-      {/* Protected Routes */}
       <Route path="/">
         <ProtectedRoute component={Dashboard} />
       </Route>
@@ -46,36 +48,17 @@ function Router() {
       <Route path="/finance">
         <ProtectedRoute component={Finance} />
       </Route>
-      
-      {/* Placeholders for routes to be implemented */}
       <Route path="/calendar">
-        <div className="flex items-center justify-center h-screen bg-background">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold font-display">Calendar Coming Soon</h1>
-            <p className="text-muted-foreground mt-2">This module is under construction.</p>
-            <a href="/" className="text-primary hover:underline mt-4 block">Go Home</a>
-          </div>
-        </div>
+        <ProtectedRoute component={CalendarPage} />
       </Route>
-
       <Route path="/journal">
-         <div className="flex items-center justify-center h-screen bg-background">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold font-display">Journal Coming Soon</h1>
-            <p className="text-muted-foreground mt-2">This module is under construction.</p>
-            <a href="/" className="text-primary hover:underline mt-4 block">Go Home</a>
-          </div>
-        </div>
+        <ProtectedRoute component={JournalPage} />
       </Route>
-
       <Route path="/insights">
-         <div className="flex items-center justify-center h-screen bg-background">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold font-display">Insights Coming Soon</h1>
-            <p className="text-muted-foreground mt-2">This module is under construction.</p>
-            <a href="/" className="text-primary hover:underline mt-4 block">Go Home</a>
-          </div>
-        </div>
+        <ProtectedRoute component={InsightsPage} />
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute component={SettingsPage} />
       </Route>
 
       <Route component={NotFound} />
