@@ -88,3 +88,26 @@ Preferred communication style: Simple, everyday language.
 ### Environment Variables Required
 - `DATABASE_URL` - PostgreSQL connection string
 - `SESSION_SECRET` - (Optional) Session encryption key, defaults to "secret"
+
+## Recent Changes (January 2026)
+
+### Frontend Pages Implemented
+- **Calendar Page** (`/calendar`) - Month view with event creation and deletion, date navigation
+- **Journal Page** (`/journal`) - Entry list with mood tracking (5 moods: happy, neutral, sad, excited, grateful), full CRUD
+- **Insights Page** (`/insights`) - Charts for spending by category, income vs expenses, productivity completion rates
+- **Settings Page** (`/settings`) - Profile editing, currency selection, payday configuration, dark/light theme toggle
+
+### Enhanced Modules
+- **Productivity Page** - Complete Routines tab with step tracking and daily completion logging; Goals tab with milestone tracking and progress visualization
+- **Finance Page** - Debts tab with "breaking chains" visualization (5 links showing payoff progress); Savings tab with "filling jar" visualization
+
+### New Hooks
+- `use-events.ts` - Calendar event CRUD operations
+- `use-goals.ts` - Goal and milestone management
+- Extended routines hook with completion tracking
+
+### Design Patterns
+- All navigation links use `data-testid="nav-{page}"` format
+- Tab triggers use `data-testid="tab-{tabname}"` format
+- Theme toggle persists to localStorage
+- Routine steps and goal milestones entered as newline-separated text, transformed to arrays on submit
