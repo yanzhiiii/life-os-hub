@@ -86,13 +86,15 @@ export const recurringTemplates = pgTable("recurring_templates", {
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   category: text("category").notNull(),
   name: text("name").notNull(),
-  frequency: text("frequency").notNull(), // daily, weekly, monthly, custom
+  frequency: text("frequency").notNull(), // once, daily, weekly, biweekly, semimonthly_1_15, semimonthly_5_20, semimonthly_15_eom, monthly, everyN
   dayOfWeek: integer("day_of_week"), // 0-6 for weekly
   dayOfMonth: integer("day_of_month"), // 1-31 for monthly
   customDays: text("custom_days").array(), // for custom: ["5", "20"] or ["15", "end"]
+  everyNDays: integer("every_n_days"), // for everyN frequency
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date"), // null = no end
   isActive: boolean("is_active").default(true),
+  note: text("note"), // optional note for the recurring item
 });
 
 export const debts = pgTable("debts", {

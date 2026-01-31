@@ -28,14 +28,28 @@ const transactionSchema = insertTransactionSchema.extend({
   date: z.coerce.date(),
 });
 
+const FREQUENCY_OPTIONS = [
+  { value: 'once', label: 'One-time' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'biweekly', label: 'Every 2 Weeks' },
+  { value: 'semimonthly_1_15', label: '1st & 15th' },
+  { value: 'semimonthly_5_20', label: '5th & 20th' },
+  { value: 'semimonthly_15_eom', label: '15th & End of Month' },
+  { value: 'monthly', label: 'Monthly (same day)' },
+  { value: 'everyN', label: 'Every N days' },
+] as const;
+
 const recurringSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["income", "expense"]),
   amount: z.coerce.number().min(0.01, "Amount must be greater than 0"),
   category: z.string().min(1),
-  frequency: z.enum(["monthly", "weekly"]),
+  frequency: z.enum(["once", "daily", "weekly", "biweekly", "semimonthly_1_15", "semimonthly_5_20", "semimonthly_15_eom", "monthly", "everyN"]),
   dayOfMonth: z.coerce.number().min(1).max(31).optional(),
   dayOfWeek: z.coerce.number().min(0).max(6).optional(),
+  everyNDays: z.coerce.number().min(2).optional(),
+  note: z.string().optional(),
 });
 
 type RecurringFormData = z.infer<typeof recurringSchema>;
@@ -612,6 +626,11 @@ function FinanceCalendarView() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showRecurringDialog, setShowRecurringDialog] = useState(false);
+  const [baselineBalance, setBaselineBalance] = useState<number>(() => {
+    const saved = localStorage.getItem('baselineBalance');
+    return saved ? parseFloat(saved) : 0;
+  });
+  const [baselineInput, setBaselineInput] = useState(String(baselineBalance));
   
   const recurringForm = useForm<RecurringFormData>({
     resolver: zodResolver(recurringSchema),
@@ -623,6 +642,8 @@ function FinanceCalendarView() {
       frequency: 'monthly',
       dayOfMonth: 15,
       dayOfWeek: 1,
+      everyNDays: 7,
+      note: '',
     },
   });
   
@@ -636,12 +657,67 @@ function FinanceCalendarView() {
       category: data.category,
       frequency: data.frequency,
       dayOfMonth: data.frequency === 'monthly' ? data.dayOfMonth : undefined,
-      dayOfWeek: data.frequency === 'weekly' ? data.dayOfWeek : undefined,
+      dayOfWeek: data.frequency === 'weekly' || data.frequency === 'biweekly' ? data.dayOfWeek : undefined,
+      everyNDays: data.frequency === 'everyN' ? data.everyNDays : undefined,
+      note: data.note || undefined,
       startDate: new Date(),
       isActive: true,
     });
     setShowRecurringDialog(false);
     recurringForm.reset();
+  };
+  
+  const applyBaseline = () => {
+    const val = parseFloat(baselineInput) || 0;
+    setBaselineBalance(val);
+    localStorage.setItem('baselineBalance', String(val));
+  };
+  
+  const occursOn = (template: any, day: Date, startDate: Date) => {
+    const d = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const s = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    
+    const templateEnd = template.endDate ? new Date(template.endDate) : null;
+    const e = templateEnd ? new Date(templateEnd.getFullYear(), templateEnd.getMonth(), templateEnd.getDate()) : null;
+    
+    if (d < s || (e && d > e)) return false;
+    if (!template.isActive) return false;
+    
+    const dayNum = d.getDate();
+    const dayOfWeek = d.getDay();
+    const lastDayOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    
+    switch (template.frequency) {
+      case 'once':
+        return d.getTime() === s.getTime();
+      case 'daily':
+        return true;
+      case 'weekly':
+        return dayOfWeek === template.dayOfWeek;
+      case 'biweekly': {
+        const diffDays = Math.floor((d.getTime() - s.getTime()) / 86400000);
+        return dayOfWeek === s.getDay() && diffDays % 14 === 0;
+      }
+      case 'semimonthly_1_15':
+        return dayNum === 1 || dayNum === 15;
+      case 'semimonthly_5_20':
+        return dayNum === 5 || dayNum === 20;
+      case 'semimonthly_15_eom': {
+        const isEndOfMonth = dayNum === 30 || (lastDayOfMonth < 30 && dayNum === lastDayOfMonth);
+        return dayNum === 15 || isEndOfMonth;
+      }
+      case 'monthly': {
+        const targetDay = template.dayOfMonth || s.getDate();
+        return dayNum === Math.min(targetDay, lastDayOfMonth);
+      }
+      case 'everyN': {
+        const n = template.everyNDays || 2;
+        const diffDays = Math.floor((d.getTime() - s.getTime()) / 86400000);
+        return diffDays % n === 0;
+      }
+      default:
+        return false;
+    }
   };
   
   const currency = user?.currency || "PHP";
@@ -737,6 +813,99 @@ function FinanceCalendarView() {
   
   const payPeriods = getPayPeriods();
   
+  const computeProjectedBalances = () => {
+    const balances: Map<string, { balance: number; income: number; expense: number; items: any[] }> = new Map();
+    let running = baselineBalance;
+    
+    const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    
+    for (const day of allDays) {
+      const dayStr = format(day, "yyyy-MM-dd");
+      const dayTransactions = getTransactionsForDay(day);
+      const actualIncome = dayTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+      const actualExpense = dayTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+      
+      const recurringForDay = (recurringTemplates || []).filter(r => {
+        const startDate = typeof r.startDate === 'string' ? parseISO(r.startDate) : new Date(r.startDate);
+        return occursOn(r, day, startDate);
+      });
+      
+      const projectedIncome = recurringForDay.filter(r => r.type === 'income').reduce((acc, r) => acc + Number(r.amount), 0);
+      const projectedExpense = recurringForDay.filter(r => r.type === 'expense').reduce((acc, r) => acc + Number(r.amount), 0);
+      
+      const totalIncome = actualIncome + projectedIncome;
+      const totalExpense = actualExpense + projectedExpense;
+      
+      running = running + totalIncome - totalExpense;
+      
+      balances.set(dayStr, {
+        balance: running,
+        income: totalIncome,
+        expense: totalExpense,
+        items: recurringForDay
+      });
+    }
+    
+    return balances;
+  };
+  
+  const projectedBalances = computeProjectedBalances();
+  
+  const projectedEndBalance = Array.from(projectedBalances.values()).pop()?.balance ?? baselineBalance;
+  
+  const getPayoutPeriodStats = () => {
+    if (paydayDates.length < 2) return [];
+    
+    const sortedDates = [...paydayDates].sort((a, b) => a - b);
+    const periods: { 
+      label: string; 
+      income: number; 
+      expense: number; 
+      net: number; 
+      expensesByCategory: Record<string, number> 
+    }[] = [];
+    
+    for (let i = 0; i < sortedDates.length; i++) {
+      const startDay = sortedDates[i];
+      const endDay = i === sortedDates.length - 1 ? sortedDates[0] : sortedDates[i + 1];
+      const isLastPeriod = i === sortedDates.length - 1;
+      
+      const lastDayOfMonth = endOfMonth(currentMonth).getDate();
+      const actualStartDay = Math.min(startDay, lastDayOfMonth);
+      const actualEndDay = isLastPeriod ? lastDayOfMonth : Math.min(endDay - 1, lastDayOfMonth);
+      
+      let periodIncome = 0;
+      let periodExpense = 0;
+      const expensesByCategory: Record<string, number> = {};
+      
+      for (let d = actualStartDay; d <= actualEndDay; d++) {
+        const dayStr = format(setDate(currentMonth, d), "yyyy-MM-dd");
+        const dayData = projectedBalances.get(dayStr);
+        if (dayData) {
+          periodIncome += dayData.income;
+          periodExpense += dayData.expense;
+          
+          dayData.items.filter(item => item.type === 'expense').forEach(item => {
+            const cat = item.category || 'Other';
+            expensesByCategory[cat] = (expensesByCategory[cat] || 0) + Number(item.amount);
+          });
+        }
+      }
+      
+      periods.push({
+        label: `${actualStartDay}${actualStartDay === 1 ? 'st' : actualStartDay === 2 ? 'nd' : actualStartDay === 3 ? 'rd' : 'th'} - ${actualEndDay}${actualEndDay === 1 ? 'st' : actualEndDay === 2 ? 'nd' : actualEndDay === 3 ? 'rd' : 'th'}`,
+        income: periodIncome,
+        expense: periodExpense,
+        net: periodIncome - periodExpense,
+        expensesByCategory
+      });
+    }
+    
+    return periods;
+  };
+  
+  const payoutPeriodStats = getPayoutPeriodStats();
+  
   const getCurrentPayPeriod = () => {
     const today = new Date();
     if (paydayDates.length === 0) return null;
@@ -802,6 +971,40 @@ function FinanceCalendarView() {
   
   return (
     <div className="space-y-6">
+      <Card className="shadow-md" data-testid="card-baseline">
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <Label htmlFor="baseline" className="text-sm text-muted-foreground mb-2 block">Starting Balance</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="baseline"
+                  type="number"
+                  placeholder="Enter starting balance"
+                  value={baselineInput}
+                  onChange={(e) => setBaselineInput(e.target.value)}
+                  className="max-w-[200px]"
+                  data-testid="input-baseline"
+                />
+                <Button onClick={applyBaseline} data-testid="button-apply-baseline">Apply</Button>
+              </div>
+            </div>
+            <div className="flex gap-6 text-sm">
+              <div>
+                <span className="text-muted-foreground">Current:</span>
+                <span className="ml-2 font-semibold">{formatCurrency(baselineBalance, currency)}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Projected End:</span>
+                <span className={cn("ml-2 font-semibold", projectedEndBalance >= 0 ? "text-green-600" : "text-red-600")}>
+                  {formatCurrency(projectedEndBalance, currency)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
       <div className="grid md:grid-cols-3 gap-6">
         <Card className="bg-gradient-to-br from-green-500 to-emerald-600 text-white border-none shadow-xl">
           <CardContent className="pt-6">
@@ -934,6 +1137,92 @@ function FinanceCalendarView() {
         </Card>
       )}
       
+      {payoutPeriodStats.length > 0 && (
+        <Card className="shadow-md" data-testid="card-payout-stats">
+          <CardHeader>
+            <CardTitle className="text-lg">Payout Period Statistics</CardTitle>
+            <CardDescription>Projected income, expenses, and net by pay period</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-6">
+              {payoutPeriodStats.map((period, idx) => {
+                const categoryData = Object.entries(period.expensesByCategory)
+                  .map(([name, value]) => ({ name, value }))
+                  .sort((a, b) => b.value - a.value);
+                const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFA07A', '#87CEEB', '#DDA0DD', '#98D8C8'];
+                
+                return (
+                  <div key={idx} className="space-y-4 p-4 rounded-xl bg-secondary/30" data-testid={`payout-period-${idx}`}>
+                    <h4 className="font-semibold text-center">{`Period ${idx + 1} (${period.label})`}</h4>
+                    
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
+                        <p className="text-[10px] text-muted-foreground">Income</p>
+                        <p className="text-sm font-bold text-green-600">{formatCurrency(period.income, currency)}</p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20">
+                        <p className="text-[10px] text-muted-foreground">Expenses</p>
+                        <p className="text-sm font-bold text-red-600">{formatCurrency(period.expense, currency)}</p>
+                      </div>
+                      <div className={cn(
+                        "p-2 rounded-lg",
+                        period.net >= 0 ? "bg-blue-50 dark:bg-blue-900/20" : "bg-orange-50 dark:bg-orange-900/20"
+                      )}>
+                        <p className="text-[10px] text-muted-foreground">Net</p>
+                        <p className={cn(
+                          "text-sm font-bold",
+                          period.net >= 0 ? "text-blue-600" : "text-orange-600"
+                        )}>{formatCurrency(period.net, currency)}</p>
+                      </div>
+                    </div>
+                    
+                    {categoryData.length > 0 && (
+                      <div className="h-[140px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={categoryData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={30}
+                              outerRadius={50}
+                              paddingAngle={2}
+                              dataKey="value"
+                            >
+                              {categoryData.map((_, index) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <ReTooltip
+                              formatter={(value: number) => formatCurrency(value, currency)}
+                              contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    
+                    {categoryData.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-center text-[10px]">
+                        {categoryData.slice(0, 5).map((cat, catIdx) => (
+                          <div key={cat.name} className="flex items-center gap-1">
+                            <div 
+                              className="w-2 h-2 rounded-full" 
+                              style={{ backgroundColor: CHART_COLORS[catIdx % CHART_COLORS.length] }}
+                            />
+                            <span className="text-muted-foreground">{cat.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       <Card className="shadow-md">
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-4">
@@ -1038,8 +1327,9 @@ function FinanceCalendarView() {
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="monthly">Monthly</SelectItem>
-                                    <SelectItem value="weekly">Weekly</SelectItem>
+                                    {FREQUENCY_OPTIONS.map(opt => (
+                                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -1062,7 +1352,7 @@ function FinanceCalendarView() {
                             )}
                           />
                         )}
-                        {watchFrequency === 'weekly' && (
+                        {(watchFrequency === 'weekly' || watchFrequency === 'biweekly') && (
                           <FormField
                             control={recurringForm.control}
                             name="dayOfWeek"
@@ -1086,6 +1376,34 @@ function FinanceCalendarView() {
                             )}
                           />
                         )}
+                        {watchFrequency === 'everyN' && (
+                          <FormField
+                            control={recurringForm.control}
+                            name="everyNDays"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Every N Days</FormLabel>
+                                <FormControl>
+                                  <Input type="number" min={2} placeholder="e.g., 7" {...field} data-testid="input-recurring-every-n" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        <FormField
+                          control={recurringForm.control}
+                          name="note"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Note (optional)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g., Utility bill" {...field} data-testid="input-recurring-note" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                         <Button type="submit" className="w-full" disabled={isCreating} data-testid="button-save-recurring">
                           {isCreating ? 'Saving...' : 'Save Recurring Transaction'}
                         </Button>
@@ -1130,27 +1448,24 @@ function FinanceCalendarView() {
                 {calendarDays.map(day => {
                   const dateStr = format(day, "yyyy-MM-dd");
                   const dayOfMonth = day.getDate();
-                  const dayOfWeek = day.getDay();
                   const summary = getDaySummary(day);
                   const isToday = isSameDay(day, new Date());
                   const isSelected = selectedDate && isSameDay(day, selectedDate);
                   const hasTransactions = summary.transactions.length > 0;
                   const isPayday = paydayDates.includes(dayOfMonth);
-                  const recurringForDay = (recurringTemplates || []).filter(r => {
-                    if (!r.isActive) return false;
-                    if (r.frequency === 'monthly' && r.dayOfMonth === dayOfMonth) return true;
-                    if (r.frequency === 'weekly' && r.dayOfWeek === dayOfWeek) return true;
-                    return false;
-                  });
-                  const projectedExpense = recurringForDay.filter(r => r.type === 'expense').reduce((acc, r) => acc + Number(r.amount), 0);
-                  const projectedIncome = recurringForDay.filter(r => r.type === 'income').reduce((acc, r) => acc + Number(r.amount), 0);
+                  
+                  const dayProjection = projectedBalances.get(dateStr);
+                  const projectedBalance = dayProjection?.balance ?? 0;
+                  const recurringForDay = dayProjection?.items || [];
+                  const projectedExpense = recurringForDay.filter((r: any) => r.type === 'expense').reduce((acc: number, r: any) => acc + Number(r.amount), 0);
+                  const projectedIncome = recurringForDay.filter((r: any) => r.type === 'income').reduce((acc: number, r: any) => acc + Number(r.amount), 0);
                   
                   return (
                     <button
                       key={day.toISOString()}
                       onClick={() => setSelectedDate(day)}
                       className={cn(
-                        "h-20 p-1.5 rounded-lg text-xs transition-all relative flex flex-col items-start justify-start border",
+                        "h-24 p-1.5 rounded-lg text-xs transition-all relative flex flex-col items-start justify-start border",
                         isToday && "ring-2 ring-primary ring-offset-1",
                         isSelected && "bg-primary/10 border-primary",
                         isPayday && !isSelected && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700",
@@ -1158,7 +1473,7 @@ function FinanceCalendarView() {
                       )}
                       data-testid={`finance-day-${dateStr}`}
                     >
-                      <div className="flex items-center justify-between w-full mb-1">
+                      <div className="flex items-center justify-between w-full mb-0.5">
                         <span className={cn(
                           "font-semibold text-sm",
                           isToday && "text-primary",
@@ -1180,24 +1495,33 @@ function FinanceCalendarView() {
                         {(projectedIncome > 0 || projectedExpense > 0) && (
                           <div className="flex gap-1 text-[10px]">
                             {projectedIncome > 0 && (
-                              <span className="text-green-600 font-medium opacity-60">+{projectedIncome >= 1000 ? `${(projectedIncome/1000).toFixed(0)}k` : projectedIncome}</span>
+                              <span className="text-green-600 font-medium">+{projectedIncome >= 1000 ? `${(projectedIncome/1000).toFixed(0)}k` : projectedIncome}</span>
                             )}
                             {projectedExpense > 0 && (
-                              <span className="text-red-600 font-medium opacity-60">-{projectedExpense >= 1000 ? `${(projectedExpense/1000).toFixed(0)}k` : projectedExpense}</span>
+                              <span className="text-red-600 font-medium">-{projectedExpense >= 1000 ? `${(projectedExpense/1000).toFixed(0)}k` : projectedExpense}</span>
                             )}
                           </div>
                         )}
                         
                         {hasTransactions && (
-                          <div className="flex gap-1 text-[10px] mt-auto">
+                          <div className="flex gap-1 text-[10px]">
                             {summary.income > 0 && (
-                              <span className="text-green-600 font-medium">+{summary.income >= 1000 ? `${(summary.income/1000).toFixed(0)}k` : summary.income}</span>
+                              <span className="text-green-600 font-bold">+{summary.income >= 1000 ? `${(summary.income/1000).toFixed(0)}k` : summary.income}</span>
                             )}
                             {summary.expense > 0 && (
-                              <span className="text-red-600 font-medium">-{summary.expense >= 1000 ? `${(summary.expense/1000).toFixed(0)}k` : summary.expense}</span>
+                              <span className="text-red-600 font-bold">-{summary.expense >= 1000 ? `${(summary.expense/1000).toFixed(0)}k` : summary.expense}</span>
                             )}
                           </div>
                         )}
+                      </div>
+                      
+                      <div className={cn(
+                        "w-full text-center mt-auto pt-0.5 border-t text-[10px] font-semibold",
+                        projectedBalance >= 0 ? "text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" : "text-red-700 dark:text-red-400 border-red-200 dark:border-red-800"
+                      )}>
+                        {projectedBalance >= 0 ? '' : ''}{projectedBalance >= 1000 || projectedBalance <= -1000 
+                          ? `${(projectedBalance/1000).toFixed(1)}k` 
+                          : projectedBalance.toFixed(0)}
                       </div>
                     </button>
                   );
@@ -1233,41 +1557,63 @@ function FinanceCalendarView() {
                       </div>
                       
                       {(() => {
-                        const dayOfMonth = selectedDate.getDate();
-                        const dayOfWeek = selectedDate.getDay();
-                        const recurring = (recurringTemplates || []).filter(r => {
-                          if (!r.isActive) return false;
-                          if (r.frequency === 'monthly' && r.dayOfMonth === dayOfMonth) return true;
-                          if (r.frequency === 'weekly' && r.dayOfWeek === dayOfWeek) return true;
-                          return false;
-                        });
-                        if (recurring.length > 0) {
-                          return (
-                            <div className="space-y-2">
-                              <p className="text-xs font-medium text-muted-foreground">Recurring Bills</p>
-                              {recurring.map(r => (
-                                <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <Repeat className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                                    <div className="min-w-0">
-                                      <p className="font-medium text-sm truncate">{r.name}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {r.category} • {r.frequency === 'weekly' ? DAYS_OF_WEEK[r.dayOfWeek || 0] : `Day ${r.dayOfMonth}`}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <span className={cn(
-                                    "font-bold text-xs flex-shrink-0",
-                                    r.type === 'income' ? "text-green-600" : "text-red-600"
-                                  )}>
-                                    {r.type === 'income' ? '+' : '-'}{formatCurrency(Number(r.amount), currency)}
-                                  </span>
-                                </div>
-                              ))}
+                        const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+                        const selectedDayProjection = projectedBalances.get(selectedDateStr);
+                        const recurring = selectedDayProjection?.items || [];
+                        const selectedProjectedBalance = selectedDayProjection?.balance ?? baselineBalance;
+                        
+                        const getFrequencyLabel = (r: any) => {
+                          const opt = FREQUENCY_OPTIONS.find(o => o.value === r.frequency);
+                          if (r.frequency === 'weekly' || r.frequency === 'biweekly') {
+                            return `${opt?.label || r.frequency} (${DAYS_OF_WEEK[r.dayOfWeek || 0]})`;
+                          }
+                          if (r.frequency === 'monthly') {
+                            return `${opt?.label || 'Monthly'} (Day ${r.dayOfMonth})`;
+                          }
+                          if (r.frequency === 'everyN') {
+                            return `Every ${r.everyNDays} days`;
+                          }
+                          return opt?.label || r.frequency;
+                        };
+                        
+                        return (
+                          <>
+                            <div className="text-center p-3 mb-3 rounded-lg bg-secondary/50">
+                              <p className="text-xs text-muted-foreground mb-1">Projected Balance</p>
+                              <p className={cn(
+                                "text-xl font-bold",
+                                selectedProjectedBalance >= 0 ? "text-green-600" : "text-red-600"
+                              )}>
+                                {formatCurrency(selectedProjectedBalance, currency)}
+                              </p>
                             </div>
-                          );
-                        }
-                        return null;
+                            
+                            {recurring.length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs font-medium text-muted-foreground">Recurring Bills</p>
+                                {recurring.map((r: any) => (
+                                  <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <Repeat className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                                      <div className="min-w-0">
+                                        <p className="font-medium text-sm truncate">{r.name}</p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {r.category} • {getFrequencyLabel(r)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <span className={cn(
+                                      "font-bold text-xs flex-shrink-0",
+                                      r.type === 'income' ? "text-green-600" : "text-red-600"
+                                    )}>
+                                      {r.type === 'income' ? '+' : '-'}{formatCurrency(Number(r.amount), currency)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
                       })()}
                       
                       {getDaySummary(selectedDate).transactions.length > 0 ? (

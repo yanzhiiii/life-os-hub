@@ -1,0 +1,808 @@
+under the finance tab, in the calendar, i want the thought to be this, this is from my old website
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>AntiGastador Calendar</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗓️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/CalendarCalcu.css">
+</head>
+<body class="unauthenticated">
+  <div class="app">
+    <header>
+      <div class="header-row">
+        <div class="brand">
+          <div class="logo">₱</div>
+          <div class="brand-text">
+            <div>AntiGastador</div>
+            <div class="small">Projected Balance Calendar</div>
+          </div>
+        </div>
+        <div class="header-actions desktop-only">
+          <button class="btn" id="btnManageData">Manage Data</button>
+          <button class="btn danger" id="btnLogout">Logout</button>
+          <button class="btn" id="btnTheme" aria-label="Toggle Theme"></button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="top-controls">
+          <div class="form-row">
+            <div class="small">Baseline:</div>
+            <input id="startBal" type="number" placeholder="Starting balance" style="width:140px" />
+            <button class="btn primary" id="btnApplyBase">Apply</button>
+            <div class="db-status small">Status: <span id="dbStatus">Connecting...</span></div>
+          </div>
+          <div class="form-row">
+            <div class="small">Payout Period:</div>
+            <select id="payoutPeriodSelect">
+              <option value="1-15">1st-15th</option>
+              <option value="5-20">5th-20th</option>
+              <option value="15-30">15th-EOM</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="stats-section">
+        <div class="card">
+          <div class="label">Month Income</div>
+          <div class="value" id="monthIncome" style="color:var(--income)">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Month Expenses</div>
+          <div class="value" id="monthExpense" style="color:var(--expense)">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Projected End Balance</div>
+          <div class="value" id="monthEnd">—</div>
+        </div>
+      </div>
+      
+      <div class="payout-stats card">
+        <h3 class="payout-title">Payout Period Statistics</h3>
+        <div class="payout-grid">
+          <div class="payout-card">
+            <h4 id="p1-period-label">1st Period (1-15)</h4>
+            <div class="stat"><span class="label">Income:</span><span class="val-income" id="p1-income"></span></div>
+            <div class="stat"><span class="label">Expenses:</span><span class="val-expense" id="p1-expense"></span></div>
+            <div class="stat"><span class="label">Net:</span><span class="val-net" id="p1-net"></span></div>
+          </div>
+          <div class="payout-card">
+            <h4 id="p2-period-label">2nd Period (16-EOM)</h4>
+            <div class="stat"><span class="label">Income:</span><span class="val-income" id="p2-income"></span></div>
+            <div class="stat"><span class="label">Expenses:</span><span class="val-expense" id="p2-expense"></span></div>
+            <div class="stat"><span class="label">Net:</span><span class="val-net" id="p2-net"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-container card">
+        <h3 class="chart-title">Expense Breakdown by Period</h3>
+        <div class="payout-grid">
+          <div class="payout-card">
+            <h4 id="p1-chart-title">1st Period</h4>
+            <div id="expenseChart1" style="min-height: 180px;"></div>
+          </div>
+          <div class="payout-card">
+            <h4 id="p2-chart-title">2nd Period</h4>
+            <div id="expenseChart2" style="min-height: 180px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="calendar-wrap">
+        <div class="calendar-header">
+            <button class="btn" id="btnToday">Today</button>
+            <div class="month-display">
+                <button class="btn" id="prevMonth" aria-label="Previous month">‹</button>
+                <h2 id="monthLabel">Month YYYY</h2>
+                <button class="btn" id="nextMonth" aria-label="Next month">›</button>
+            </div>
+            <button class="btn" id="btnToggleDayStatus">Toggle Status</button>
+        </div>
+        <div class="weekdays" id="weekdays">
+          <div>Sunday</div><div>Monday</div><div>Tuesday</div><div>Wednesday</div><div>Thursday</div><div>Friday</div><div>Saturday</div>
+        </div>
+        <div class="grid" id="grid"></div>
+      </div>
+
+      <div class="desktop-controls desktop-only">
+        <div class="legend" id="legend"></div>
+        <div class="actions">
+          <button class="btn" id="btnClear">Clear All</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Mobile Nav -->
+    <nav class="mobile-nav">
+        <button class="nav-btn" id="m-nav-today" aria-label="Go to today"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M16 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path><path d="M16 18h.01"></path></svg><span>Today</span></button>
+        <button class="nav-btn primary" id="m-nav-add" aria-label="Add new item"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg><span>Add</span></button>
+        <button class="nav-btn" id="m-nav-manage" aria-label="Manage data"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20V16"></path></svg><span>Data</span></button>
+    </nav>
+
+    <!-- Modals -->
+    <dialog id="dlgItem"><div class="modal" id="dlgItemInner">
+      <h3 id="dlgItemTitle">Edit Item</h3>
+      <div class="form">
+        <div class="form-row">
+          <div style="flex:1">
+            <label for="itemType">Type</label>
+            <select id="itemType">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label for="itemAmount">Amount</label>
+            <input id="itemAmount" type="number" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div style="flex:1">
+            <label for="itemStart">Start Date</label>
+            <input id="itemStart" type="date" />
+          </div>
+          <div style="flex:1">
+            <label for="itemEnd">End Date (optional)</label>
+            <input id="itemEnd" type="date" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div style="flex:1">
+            <label for="itemRec">Recurrence</label>
+            <select id="itemRec">
+              <option value="once">One-time</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 Weeks</option>
+              <option value="semimonthly_1_15">1st & 15th</option>
+              <option value="semimonthly_5_20">5th & 20th</option>
+              <option value="semimonthly_15_30">15th & End of Month</option>
+              <option value="monthly">Monthly (same day)</option>
+              <option value="everyN">Every N days</option>
+            </select>
+          </div>
+          <div style="width:120px" id="everyWrapper" style="display:none">
+            <label for="itemEvery">Every N</label>
+            <input id="itemEvery" type="number" min="2" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div style="flex:1">
+            <label for="itemCategory">Category</label>
+            <input id="itemCategory" placeholder="e.g., Food, Transport, Rent..." />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div style="flex:1">
+            <label for="itemNote">Note</label>
+            <input id="itemNote" />
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn danger" id="btnDeleteItem" style="display:none">Delete</button>
+          <button class="btn primary" id="btnSaveItem">Save</button>
+        </div>
+      </div>
+    </div></dialog>
+
+    <dialog id="dlgDay"><div class="modal">
+      <h3 id="dayTitle">Day</h3>
+      <div id="dayInfo" class="small modal-subtitle"></div>
+
+      <div class="modal-actions">
+        <button class="btn positive" id="quickAddIncome">＋ Income</button>
+        <button class="btn warn" id="quickAddExpense">－ Expense</button>
+      </div>
+
+      <div class="day-items-list-container">
+
+      <div class="form-row">
+        <div style="flex:1">
+          <label for="actualBalanceInput">Set Actual Balance</label>
+          <input id="actualBalanceInput" type="number" placeholder="e.g., 5120" />
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button class="btn" id="btnSetActual">Set</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="dayStatus" style="min-width:80px">Day status</label>
+        <select id="dayStatus">
+          <option value="">(none)</option>
+          <option value="working">Working</option>
+          <option value="rest">Rest</option>
+          <option value="absent">Absent</option>
+        </select>
+      </div>
+
+      <div id="dayList" class="day-items-list"></div>
+
+      <div class="modal-actions">
+        <button class="btn" id="btnCloseDay">Close</button>
+      </div>
+    </div></dialog>
+
+    <dialog id="dlgManager"><div class="modal">
+      <h3>Data Manager</h3>
+      <div class="form-row">
+        <div style="flex:1">
+          <label for="managerFilterType">Filter by Type</label>
+          <select id="managerFilterType">
+            <option value="all">All</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label for="managerSearch">Search</label>
+          <input id="managerSearch" type="search" placeholder="e.g., Salary, Food...">
+        </div>
+      </div>
+      <div id="dataManagerList"></div>
+      <div class="modal-actions">
+        <button class="btn" id="btnCloseManager">Close</button>
+      </div>
+    </div></dialog>
+
+    <dialog id="dlgAlert"><div class="modal">
+      <h3 id="alertTitle">Alert</h3>
+      <p id="alertMessage" class="small" style="margin: 16px 0; line-height: 1.5;"></p>
+      <div class="modal-actions">
+        <button class="btn" id="btnAlertCancel">Cancel</button>
+        <button class="btn primary" id="btnAlertOk">OK</button>
+      </div>
+    </div></dialog>
+
+  </div>
+
+<script type="module" src="assets/js/CalendarCalcu.js"></script>
+</body>
+</html>
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+// --- IMPORTANT ---
+// Your web app's Firebase configuration
+// For security reasons, do not store this information directly in your code.
+// Consider using a separate, non-versioned file or environment variables.
+const firebaseConfig = {
+  apiKey: "AIzaSyACGmrGDitijvRu2OdbmkjFe4_63PDO48Y",
+  authDomain: "tipidnako-5d701.firebaseapp.com",
+  projectId: "tipidnako-5d701",
+  storageBucket: "tipidnako-5d701.firebasestorage.app",
+  messagingSenderId: "640395717425",
+  appId: "1:640395717425:web:e7c18b782ae7f74005de10"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Auth state listener
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    // User is signed in, run the app.
+    document.body.classList.remove('unauthenticated');
+    runApp(user);
+  } else {
+    // User is signed out, redirect to login page.
+    window.location.href = 'index.html';
+  }
+});
+
+
+/* =========================
+   AntiGastador Calendar v3.4
+   ========================= */
+
+async function runApp(user) {
+  // ---------- Utilities ----------
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const fmt = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+
+  function toISO(d) {
+  if (!d) return null;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+  function todayISO(){ return toISO(new Date()); }
+  function startOfDay(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function addDays(d,n){ const dt = new Date(d); dt.setDate(dt.getDate()+n); return dt; }
+  function id(){ return Math.random().toString(36).slice(2)+Date.now().toString(36); }
+  function parseISOLocal(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+
+  // ---------- App state ----------
+  let state = {
+    base: { date: toISO(new Date()), amount: 0 },
+    current: new Date(),
+    items: [],
+    actuals: {},
+    dayFlags: {},
+    theme: 'dark',
+    payoutPeriod: '1-15'
+  };
+
+  const ICONS = {
+      working: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12h.01"></path><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"></path><path d="M22 13a18.15 18.15 0 0 1-20 0"></path><path d="M6 12a6 6 0 0 1 12 0Z"></path></svg>`, 
+      rest: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 1 0 10 10"></path><path d="M12 22a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z"></path><path d="M12 2v20"></path></svg>`, 
+      absent: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>`,
+      themeLight: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`,
+      themeDark: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`
+  };
+
+  // --- Data Persistence --- 
+  let debounceTimer;
+  async function saveData() {
+    $("#dbStatus").textContent = 'Saving...';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+        try {
+            const dataToSave = { ...state };
+            delete dataToSave.current; // Don't save transient UI state
+            
+            const userDocRef = doc(db, "users", user.uid);
+            await setDoc(userDocRef, dataToSave);
+            
+            $("#dbStatus").textContent = 'All changes saved';
+        } catch (error) {
+            console.error("Error saving data to Firestore:", error);
+            $("#dbStatus").textContent = 'Save failed';
+            showAlert('Connection Error', `Could not save data to the cloud. Please check your internet connection. Error: ${error.message}`);
+        }
+    }, 1000); // Debounce requests by 1 second
+  }
+
+  async function loadData() {
+    $("#dbStatus").textContent = 'Loading...';
+    const userDocRef = doc(db, "users", user.uid);
+    try {
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+            const loadedData = docSnap.data();
+            // Convert date strings back to Date objects
+            loadedData.current = new Date(); // Always start on current month
+            state = { ...state, ...loadedData };
+            $("#dbStatus").textContent = 'Loaded';
+        } else {
+            console.log("No data found for new user, creating initial document.");
+            $("#dbStatus").textContent = 'Ready';
+            await saveData(); // Save initial default state
+        }
+    } catch (error) {
+        console.error("Error loading data from Firestore:", error);
+        $("#dbStatus").textContent = 'Load failed';
+        showAlert('Connection Error', `Could not load data from the cloud. Please check your internet connection. Error: ${error.message}`);
+    }
+  }
+
+  function applyTheme() {
+      document.body.classList.toggle('light-mode', state.theme === 'light');
+      $("#btnTheme").innerHTML = state.theme === 'light' ? ICONS.themeDark : ICONS.themeLight;
+  }
+
+  function toggleTheme() {
+      state.theme = state.theme === 'light' ? 'dark' : 'light';
+      applyTheme();
+      saveData();
+  }
+
+  // ---------- Recurrence logic ----------
+  function occursOn(item, day){
+    const d = startOfDay(day);
+    const s = startOfDay(parseISOLocal(item.start));
+    const e = item.end ? startOfDay(parseISOLocal(item.end)) : null;
+    if(d < s || (e && d > e)) return false;
+    switch(item.rec){
+      case 'once': return toISO(s) === toISO(d);
+      case 'daily': return true;
+      case 'weekly': return d.getDay() === s.getDay();
+      case 'biweekly': return (Math.floor((d - s) / 86400000)) % 14 === 0;
+      case 'semimonthly_1_15': { const dt = d.getDate(); return dt===1 || dt===15; }
+      case 'semimonthly_5_20': { const dt = d.getDate(); return dt===5 || dt===20; }
+      case 'semimonthly_15_30': { const dt=d.getDate(); const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); const match30 = dt===30 || (last<30 && dt===last); return dt===15 || match30; }
+      case 'monthly': { const want = s.getDate(); const last = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); return d.getDate() === Math.min(want, last); }
+      case 'everyN': { const n = Number(item.everyN||2); return (Math.floor((d - s) / 86400000)) % n === 0; }
+      default: return false;
+    }
+  }
+
+  // ---------- Compute & Render ----------
+  function computeRangeBalances(startDate, endDate){
+    startDate = startOfDay(startDate);
+    endDate = startOfDay(endDate);
+
+    // Determine the true starting point for calculation
+    let effectiveCalcStartDate = startOfDay(new Date(state.base.date));
+    let initialRunningBalance = Number(state.base.amount || 0);
+
+    const actualKeys = Object.keys(state.actuals).sort();
+    // Find the latest actual balance on or before the requested startDate
+    const relevantActualKey = actualKeys.filter(k => parseISOLocal(k) <= startDate).pop();
+
+    if (relevantActualKey) {
+        effectiveCalcStartDate = startOfDay(parseISOLocal(relevantActualKey));
+        initialRunningBalance = Number(state.actuals[relevantActualKey]);
+    }
+
+    const out = new Map();
+    let running = initialRunningBalance;
+
+    for(let d = new Date(effectiveCalcStartDate); d <= endDate; d = addDays(d,1)){
+      const iso = toISO(d);
+      const todaysItems = state.items.filter(it => occursOn(it, d));
+      const incomes = todaysItems.filter(t => t.type === 'income');
+      const expenses = todaysItems.filter(t => t.type === 'expense');
+      const sumIn = incomes.reduce((a,b) => a + Number(b.amount||0), 0);
+      const sumEx = expenses.reduce((a,b) => a + Number(b.amount||0), 0);
+
+      if(state.actuals[iso] !== undefined){
+        running = Number(state.actuals[iso]);
+      } else {
+        running += sumIn - sumEx;
+      }
+
+      // Only store balances for the requested range
+      if (d >= startDate) {
+        out.set(iso, {ins: incomes, exs: expenses, sumIn, sumEx, balance: running, todays: todaysItems});
+      }
+    }
+    return out;
+  }
+
+  function monthMatrix(refDate){
+    const first = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+    const startOffset = first.getDay();
+    const start = addDays(first, -startOffset);
+    const arr = [];
+    for(let i=0;i<42;i++) arr.push(addDays(start,i));
+    return arr;
+  }
+
+  function render(){
+    const cur = state.current;
+    $("#monthLabel").textContent = cur.toLocaleString(undefined, {month:'long', year:'numeric'});
+    $("#startBal").value = state.base.amount || 0;
+    const matrix = monthMatrix(cur);
+    const monthBalances = computeRangeBalances(matrix[0], matrix[matrix.length-1]);
+    let monthIn = 0, monthEx = 0, monthEnd = 0;
+    const monthStart = new Date(cur.getFullYear(), cur.getMonth(), 1);
+    const monthLast = new Date(cur.getFullYear(), cur.getMonth()+1, 0);
+    for(let d = new Date(monthStart); d<=monthLast; d = addDays(d,1)){
+      const iso = toISO(d);
+      const info = monthBalances.get(iso);
+      if(!info) continue;
+      monthIn += info.sumIn; monthEx += info.sumEx; monthEnd = info.balance;
+    }
+    $("#monthIncome").textContent = fmt.format(monthIn);
+    $("#monthExpense").textContent = fmt.format(-Math.abs(monthEx));
+    $("#monthEnd").textContent = fmt.format(monthEnd || Number(state.base.amount||0));
+    const y = cur.getFullYear();
+    const m = cur.getMonth();
+    let p1_start, p1_end, p2_start, p2_end, p1_label, p2_label;
+    if (state.payoutPeriod === '5-20') {
+        p1_start = new Date(y, m, 5); p1_end = new Date(y, m, 19);
+        p2_start = new Date(y, m, 20); p2_end = new Date(y, m + 1, 4);
+        p1_label = "5th - 19th"; p2_label = "20th - 4th";
+    } else {
+        const lastDay = new Date(y, m + 1, 0).getDate();
+        p1_start = new Date(y, m, 1); p1_end = new Date(y, m, 15);
+        p2_start = new Date(y, m, 16); p2_end = new Date(y, m, lastDay);
+        p1_label = "1st - 15th"; p2_label = `16th - ${lastDay}th`;
+    }
+    $("#p1-period-label").textContent = `Period 1 (${p1_label})`;
+    $("#p2-period-label").textContent = `Period 2 (${p2_label})`;
+    $("#p1-chart-title").textContent = `Expenses (${p1_label})`;
+    $("#p2-chart-title").textContent = `Expenses (${p2_label})`;
+    const periodBalances = computeRangeBalances(p1_start, p2_end);
+    let p1In = 0, p1Ex = 0, p2In = 0, p2Ex = 0;
+    const p1Expenses = {}, p2Expenses = {};
+    for(let d = new Date(p1_start); d <= p2_end; d = addDays(d,1)) {
+        const iso = toISO(d);
+        const info = periodBalances.get(iso);
+        if (!info) continue;
+
+        if (d >= p1_start && d <= p1_end) {
+            p1In += info.sumIn;
+            p1Ex += info.sumEx;
+            info.exs.forEach(ex => {
+                const cat = ex.category || 'Uncategorized';
+                p1Expenses[cat] = (p1Expenses[cat] || 0) + Number(ex.amount);
+            });
+        } else if (d >= p2_start && d <= p2_end) {
+            p2In += info.sumIn;
+            p2Ex += info.sumEx;
+            info.exs.forEach(ex => {
+                const cat = ex.category || 'Uncategorized';
+                p2Expenses[cat] = (p2Expenses[cat] || 0) + Number(ex.amount);
+            });
+        }
+    }
+    $("#p1-income").textContent = fmt.format(p1In); $("#p1-expense").textContent = fmt.format(-Math.abs(p1Ex)); $("#p1-net").textContent = fmt.format(p1In - p1Ex);
+    $("#p2-income").textContent = fmt.format(p2In); $("#p2-expense").textContent = fmt.format(-Math.abs(p2Ex)); $("#p2-net").textContent = fmt.format(p2In - p2Ex);
+    renderGrid(matrix, monthBalances);
+    renderLegend();
+    renderExpenseChart('#expenseChart1', p1Expenses);
+    renderExpenseChart('#expenseChart2', p2Expenses);
+    attachCellHandlers();
+  }
+  
+  function renderGrid(matrix, balances) {
+    const grid = $("#grid"); grid.innerHTML = '';
+    const today = todayISO();
+    const curMonth = state.current.getMonth();
+    for(const d of matrix){
+      const iso = toISO(d);
+      const inMonth = d.getMonth() === curMonth;
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (inMonth ? '' : ' dim') + (iso===today ? ' today' : '');
+      cell.dataset.iso = iso;
+      const head = document.createElement('div'); head.className = 'dhead';
+      const dn = document.createElement('div'); dn.className = 'dnum'; dn.textContent = d.getDate();
+      const statusWrap = document.createElement('div');
+      const flag = state.dayFlags[iso];
+      if(flag){ statusWrap.innerHTML = `<div class="day-status-indicator status-${flag}"><span class="status-icon">${ICONS[flag]}</span><span class="day-status-text">${flag}</span></div>`; }
+      head.appendChild(dn); head.appendChild(statusWrap);
+      cell.appendChild(head);
+      const chips = document.createElement('div'); chips.className = 'chips';
+      const info = balances.get(iso) || {ins:[], exs:[], balance: null};
+      const list = [...info.ins.map(t=>({kind:'in', t})), ...info.exs.map(t=>({kind:'ex', t}))];
+      list.slice(0,2).forEach(entry => {
+        const el = document.createElement('div'); el.className = 'chip ' + (entry.kind==='in' ? 'income' : 'expense');
+        el.textContent = (entry.kind==='in' ? '+' : '-') + fmt.format(Number(entry.t.amount||0));
+        el.title = `${entry.t.type.toUpperCase()} ${fmt.format(Number(entry.t.amount||0))}
+${entry.t.note||''}`;
+        el.addEventListener('click', (e) => { e.stopPropagation(); openItemEditor(entry.t.id); });
+        chips.appendChild(el);
+      });
+      if(list.length > 2){ chips.innerHTML += `<div class="chip more">+${list.length-2}</div>`; }
+      cell.appendChild(chips);
+      const footer = document.createElement('div'); footer.className = 'footer-row';
+      const remain = document.createElement('div'); remain.className = 'remain';
+      if(info.balance !== null && info.balance !== undefined){ remain.textContent = fmt.format(info.balance); remain.classList.add(info.balance >= 0 ? 'positive' : 'negative'); } else { remain.textContent = '—'; }
+      footer.appendChild(remain);
+      cell.appendChild(footer);
+      grid.appendChild(cell);
+    }
+  }
+
+  function renderLegend(){
+      const legend = $("#legend"); legend.innerHTML = '';
+      Object.keys(ICONS).filter(k => !k.startsWith('theme')).forEach(flag => {
+          legend.innerHTML += `<div class="legend-item"><span class="status-icon status-${flag}">${ICONS[flag]}</span><span class="day-status-text">${flag.charAt(0).toUpperCase() + flag.slice(1)}</span></div>`;
+      });
+  }
+
+  function renderExpenseChart(containerId, expenses) {
+      const container = $(containerId);
+      if (!container) return;
+      const total = Object.values(expenses).reduce((s, v) => s + v, 0);
+      if (total === 0) { container.innerHTML = `<div class="small" style="text-align:center;padding:20px;">No expense data for this period.</div>`; return; }
+      const chartColors = ['#0A84FF', '#34C759', '#FF9500', '#AF52DE', '#5856D6', '#FF3B30', '#FF2D55'];
+      const sortedExpenses = Object.entries(expenses).sort((a, b) => b[1] - a[1]);
+      let svg = `<svg viewBox="0 0 100 100" class="chart-svg">`;
+      let legend = '<div class="chart-legend">';
+      let offset = 0;
+      sortedExpenses.forEach(([category, amount], i) => {
+          const percent = (amount / total) * 100;
+          const color = chartColors[i % chartColors.length];
+          svg += `<circle cx="50" cy="50" r="40" stroke="${color}" stroke-dasharray="${percent} 100" stroke-dashoffset="-${offset}" style="transition-delay: ${i*50}ms"></circle>`;
+          legend += `<div class="legend-item"><div class="legend-color" style="background-color:${color}"></div><div class="legend-label">${category}</div><div class="legend-value">${fmt.format(amount)}</div></div>`;
+          offset += percent;
+      });
+      svg += '</svg>';
+      legend += '</div>';
+      container.innerHTML = `<div class="chart-area">${svg}${legend}</div>`;
+  }
+
+  // ---------- Modals & Editors ----------
+  let editingId = null;
+  function openItemEditor(id=null){
+    editingId = id;
+    const dlg = $("#dlgItem");
+    if(id){
+      const it = state.items.find(x => x.id === id);
+      if(!it){ showAlert('Error', 'Item not found.'); return; }
+      $("#dlgItemTitle").textContent = 'Edit Item';
+      $("#itemType").value = it.type; $("#itemAmount").value = it.amount;
+      $("#itemStart").value = it.start; $("#itemEnd").value = it.end || '';
+      $("#itemRec").value = it.rec || 'once'; $("#itemEvery").value = it.everyN || 2;
+      $("#itemCategory").value = it.category || ''; $("#itemNote").value = it.note || '';
+      $("#btnDeleteItem").style.display = 'inline-block';
+    } else {
+      $("#dlgItemTitle").textContent = 'New Item';
+      $("#itemType").value = 'expense';
+      ['itemAmount', 'itemEnd', 'itemCategory', 'itemNote'].forEach(id => $("#"+id).value = '');
+      $("#itemStart").value=todayISO(); $("#itemRec").value='once';
+      $("#itemEvery").value = 2;
+      $("#btnDeleteItem").style.display = 'none';
+    }
+    $("#everyWrapper").style.display = $("#itemRec").value === 'everyN' ? 'flex' : 'none';
+    dlg.showModal();
+  }
+
+  $("#itemRec").addEventListener('change', (e) => { $("#everyWrapper").style.display = e.target.value === 'everyN' ? 'flex' : 'none'; });
+
+  $("#btnSaveItem").addEventListener('click', async () => {
+    const type = $("#itemType").value, amount = Number($("#itemAmount").value || 0), start = $("#itemStart").value, end = $("#itemEnd").value || null;
+    if (!amount || !start) return showAlert('Missing Information', 'Please enter an amount and a start date.');
+    if (amount <= 0) return showAlert('Invalid Amount', 'Amount must be a positive number.');
+    if (end && end < start) return showAlert('Invalid Dates', 'The end date cannot be before the start date.');
+
+    const itemData = {
+      type,
+      amount,
+      start,
+      end,
+      rec: $("#itemRec").value,
+      category: $("#itemCategory").value.trim(),
+      note: $("#itemNote").value.trim()
+    };
+
+    if ($("#itemRec").value === 'everyN') {
+      itemData.everyN = Math.max(2, Number($("#itemEvery").value || 2));
+    }
+
+    if(editingId){ const i = state.items.findIndex(x=>x.id===editingId); if(i!==-1) state.items[i] = {...state.items[i], ...itemData}; }
+    else { state.items.push({ id: id(), ...itemData }); }
+    $("#dlgItem").close(); render(); saveData();
+    if ($("#dlgManager").open) openDataManager();
+    const targetCard = $("#month" + (type === 'income' ? 'Income' : 'Expense'));
+    targetCard.classList.add(type === 'income' ? 'flash-positive' : 'flash-negative');
+    setTimeout(() => targetCard.classList.remove('flash-positive', 'flash-negative'), 800);
+  });
+
+  $("#btnDeleteItem").addEventListener('click', async () => {
+    if(!editingId) return;
+    const confirmed = await showAlert('Delete Item', 'Are you sure you want to delete this item? This action cannot be undone.', true);
+    if (!confirmed) return;
+    state.items = state.items.filter(x => x.id !== editingId);
+    $("#dlgItem").close(); render(); saveData();
+    if ($("#dlgManager").open) openDataManager();
+  });
+
+  let activeDayISO = null;
+  function openDayModal(iso) {
+    activeDayISO = iso;
+    const dlg = $("#dlgDay");
+    const day = parseISOLocal(iso);
+    $("#dayTitle").textContent = day.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const listWrap = $("#dayList");
+    listWrap.innerHTML = '';
+    const itemsToday = state.items.filter(it => occursOn(it, day));
+
+    if (itemsToday.length === 0) {
+        listWrap.innerHTML = `<div class="small" style="text-align:center;padding:12px 0;">No transactions.</div>`;
+    } else {
+        itemsToday.forEach(it => {
+            const row = document.createElement('div');
+            row.className = `transaction-row ${it.type}`;
+            row.innerHTML = `
+                <div class="transaction-details">
+                    <div class="transaction-amount">${it.type === 'income' ? '+' : '-'}${fmt.format(it.amount)}</div>
+                    <div class="transaction-meta small">
+                        <span>${it.category || ''}</span>
+                        ${it.note ? `· <span>${it.note}</span>` : ''}
+                    </div>
+                </div>
+                <button class="btn btn-edit-day-item">Edit</button>
+            `;
+            row.querySelector('.btn-edit-day-item').addEventListener('click', () => {
+                dlg.close();
+                openItemEditor(it.id);
+            });
+            listWrap.appendChild(row);
+        });
+    }
+
+    $("#actualBalanceInput").value = state.actuals[iso] !== undefined ? state.actuals[iso] : '';
+    $("#dayStatus").value = state.dayFlags[iso] || '';
+    dlg.showModal();
+  }
+
+  $("#btnCloseDay").addEventListener('click', ()=> $("#dlgDay").close());
+  $("#quickAddExpense").addEventListener('click', ()=> { $("#dlgDay").close(); openItemEditor(null); setTimeout(()=> { $("#itemStart").value = activeDayISO; $("#itemType").value='expense'; }, 50); });
+  $("#quickAddIncome").addEventListener('click', ()=> { $("#dlgDay").close(); openItemEditor(null); setTimeout(()=> { $("#itemStart").value = activeDayISO; $("#itemType").value='income'; }, 50); });
+  $("#btnSetActual").addEventListener('click', ()=> { const v = $("#actualBalanceInput").value; if(v==='') delete state.actuals[activeDayISO]; else { const n=Number(v); if(!isNaN(n)) state.actuals[activeDayISO]=n; } render(); saveData(); });
+  $("#dayStatus").addEventListener('change', ()=> { const v=$("#dayStatus").value; if(v==='') delete state.dayFlags[activeDayISO]; else state.dayFlags[activeDayISO]=v; render(); saveData(); });
+
+  function openDataManager() {
+    const dlg = $("#dlgManager");
+    const listContainer = $("#dataManagerList");
+    const filterType = $("#managerFilterType").value;
+    const searchTerm = $("#managerSearch").value.toLowerCase();
+    listContainer.innerHTML = '';
+    const items = state.items.filter(it=>(filterType==='all'||it.type===filterType) && (!searchTerm||(it.category||'').toLowerCase().includes(searchTerm)||(it.note||'').toLowerCase().includes(searchTerm))).sort((a,b)=>new Date(b.start)-new Date(a.start));
+    if(items.length===0){ listContainer.innerHTML = `<div class="small" style="text-align:center;padding:20px;">No items match.</div>`;
+    } else { items.forEach(it => { const el=document.createElement('div'); el.className=`manager-item ${it.type}`; el.innerHTML = `
+          <div class="info"><div class="amount">${it.type==='income'?'+':'-'}${fmt.format(it.amount)}</div><div class="details"><strong>${it.start}</strong> | ${it.category||'No Category'}</div><div class="details">${it.note||''}</div></div>
+          <div class="manager-controls"><button class="btn btn-edit">Edit</button><button class="btn danger btn-delete">Delete</button></div>`;
+        el.querySelector('.btn-edit').addEventListener('click', ()=>{ dlg.close();openItemEditor(it.id);});
+        el.querySelector('.btn-delete').addEventListener('click', async ()=>{ const confirmed = await showAlert(`Delete ${it.type}?`, 'This action cannot be undone.', true); if(!confirmed) return; state.items=state.items.filter(i=>i.id!==it.id); saveData();render();openDataManager(); });
+        listContainer.appendChild(el);
+      });
+    }
+    dlg.showModal();
+  }
+  $("#btnManageData").addEventListener('click', openDataManager);
+  $("#m-nav-manage").addEventListener('click', openDataManager);
+  $("#btnCloseManager").addEventListener('click', () => $("#dlgManager").close());
+  $("#managerFilterType").addEventListener('change', openDataManager);
+  $("#managerSearch").addEventListener('input', openDataManager);
+
+  // ---------- Global Nav & Actions ----------
+  $("#prevMonth").addEventListener('click', ()=> { state.current.setMonth(state.current.getMonth() - 1); render(); saveData(); });
+  $("#nextMonth").addEventListener('click', ()=> { state.current.setMonth(state.current.getMonth() + 1); render(); saveData(); });
+  $("#btnToday").addEventListener('click', ()=> { state.current = new Date(); render(); saveData(); });
+  $("#m-nav-today").addEventListener('click', ()=> { state.current = new Date(); render(); saveData(); });
+  $("#m-nav-add").addEventListener('click', ()=> { openItemEditor(null); });
+
+  $("#btnLogout").addEventListener('click', () => { signOut(auth); });
+
+  $("#btnClear").addEventListener('click', async ()=> { const confirmed = await showAlert('Clear Everything?', 'This will permanently delete all items, balances, and day statuses from the cloud.', true); if(!confirmed) return; state.items=[]; state.actuals={}; state.dayFlags={}; state.base={date:toISO(new Date()),amount:0}; saveData(); render(); });
+
+  let toggleMode = false;
+  $("#btnToggleDayStatus").addEventListener('click', () => { toggleMode = !toggleMode; const btn = $("#btnToggleDayStatus"); btn.classList.toggle('primary', toggleMode); });
+  function cycleFlag(iso){ const cur=state.dayFlags[iso]; const order=['','working','rest','absent']; const next=order[(order.indexOf(cur||'') + 1) % order.length]; if(next==='')delete state.dayFlags[iso];else state.dayFlags[iso]=next; saveData();render(); }
+  function attachCellHandlers(){$$('.grid > .cell').forEach(c=>{c.onclick=()=>{if(c.classList.contains('dim'))return;const iso=c.dataset.iso;if(toggleMode)cycleFlag(iso);else openDayModal(iso);};});}
+
+  // ---------- System Modals ----------
+  const dlgAlert = $("#dlgAlert");
+  function showAlert(title, message, isConfirm = false) {
+    return new Promise((resolve) => {
+      $("#alertTitle").textContent = title;
+      $("#alertMessage").textContent = message;
+      $("#btnAlertCancel").style.display = isConfirm ? 'inline-block' : 'none';
+      $("#btnAlertOk").className = isConfirm ? 'btn danger' : 'btn primary';
+      const close = (value) => { dlgAlert.close(); $("#btnAlertOk").removeEventListener('click', onOk); $("#btnAlertCancel").removeEventListener('click', onCancel); resolve(value); };
+      const onOk = () => close(true);
+      const onCancel = () => close(false);
+      $("#btnAlertOk").addEventListener('click', onOk);
+      $("#btnAlertCancel").addEventListener('click', onCancel);
+      dlgAlert.showModal();
+    });
+  }
+
+  // ---------- Start up ----------
+  async function initializeApp() {
+    await loadData();
+    applyTheme();
+    if(!(state.current instanceof Date)) state.current = new Date(state.current);
+    if(!state.base) state.base = { date: toISO(new Date()), amount:0 };
+    $("#startBal").value = state.base.amount || 0;
+    $("#btnApplyBase").addEventListener('click', ()=> { state.base = { date: toISO(new Date(state.current.getFullYear(), state.current.getMonth(), 1)), amount: Number($("#startBal").value||0) }; saveData(); render(); const card = $("#monthEnd").closest('.card'); card.classList.add('flash-positive'); setTimeout(() => card.classList.remove('flash-positive'), 800); });
+    $("#btnTheme").addEventListener('click', toggleTheme);
+    $("#payoutPeriodSelect").value = state.payoutPeriod || '1-15';
+    $("#payoutPeriodSelect").addEventListener('change', (e) => {
+      state.payoutPeriod = e.target.value;
+      saveData();
+      render();
+    });
+    $$('dialog').forEach(d => { d.addEventListener('click', e => { if (e.target === d) d.close(); }); });
+    render();
+    window.addEventListener('visibilitychange', ()=> { if(document.visibilityState==='hidden') saveData(); });
+  }
+  
+  initializeApp();
+}
