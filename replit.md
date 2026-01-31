@@ -100,8 +100,8 @@ Preferred communication style: Simple, everyday language.
 ### Enhanced Modules
 - **Dashboard** - Dynamic salary countdown based on user's payday config, today's working status display, time-based greetings
 - **Productivity Page** - Complete Routines tab with step tracking and daily completion logging; Goals tab with milestone tracking and progress visualization
-- **Finance Page** - Calendar tab with daily income/expense grid, pay period analytics (days remaining, spent this period, daily average), pay period comparison chart; Debts tab with "breaking chains" visualization; Savings tab with "filling jar" visualization
-- **Calendar Page** - Day status system (Working Day, Rest Day, Sick Leave, Annual Leave), upcoming events timeline with "X days to go" labels
+- **Finance Page** - Calendar tab with enhanced UI featuring toggle buttons for status visibility (Working, Standby, Rest Day, Sick Leave, Annual Leave, Custom, Events), larger calendar cells with color-coded status indicators and event badges, integrated day status and events display, pay period analytics (days remaining, spent this period, daily average), pay period comparison chart; Debts tab with "breaking chains" visualization; Savings tab with "filling jar" visualization; Spending by Category pie chart with legend showing percentages
+- **Calendar Page** - Day status system (Working Day, Standby, Rest Day, Sick Leave, Annual Leave, Custom) with color-coded calendar indicators, upcoming events timeline with "X days to go" labels, planning ahead capability for future dates
 
 ### New Database Tables
 - `day_statuses` - Tracks working/rest/leave status per day with optional custom labels and colors
@@ -132,3 +132,4 @@ Preferred communication style: Simple, everyday language.
 - Routine steps and goal milestones entered as newline-separated text, transformed to arrays on submit
 - Currency formatting uses user's selected currency (PHP, USD, EUR, GBP, JPY)
 - Day status buttons use `data-testid="button-status-{type}"` format
+- Finance Calendar toggle buttons use `data-testid="toggle-status-{type}"` and `data-testid="toggle-events"` format

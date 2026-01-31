@@ -8,12 +8,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useTransactions, useCreateTransaction, useDebts, useCreateDebt, useSavingsGoals, useCreateSavingsGoal } from "@/hooks/use-finance";
+import { useDayStatuses } from "@/hooks/use-day-statuses";
+import { useEvents } from "@/hooks/use-events";
+import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTransactionSchema, insertDebtSchema, insertSavingsGoalSchema } from "@shared/schema";
 import { z } from "zod";
-import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3 } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3, Briefcase, Coffee, Clock, Stethoscope, Palmtree, Tag, CalendarCheck, Eye, EyeOff } from "lucide-react";
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, parseISO, setDate, isAfter, isBefore, differenceInDays, addDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer as ReBarContainer, Tooltip as ReBarTooltip, Legend } from "recharts";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip } from "recharts";
@@ -101,7 +104,7 @@ function TransactionsView() {
   });
 
   const onSubmit = (data: z.infer<typeof transactionSchema>) => {
-    createTransaction(data, {
+    createTransaction({ ...data, amount: String(data.amount) }, {
       onSuccess: () => {
         setIsOpen(false);
         form.reset();
@@ -583,15 +586,45 @@ const formatCurrency = (amount: number, currency: string = "PHP") => {
   }).format(amount);
 };
 
+const statusConfig = [
+  { value: "working", label: "Working", icon: Briefcase, bgColor: "bg-blue-100 dark:bg-blue-900/40", textColor: "text-blue-600", dotColor: "bg-blue-500" },
+  { value: "standby", label: "Standby", icon: Clock, bgColor: "bg-orange-100 dark:bg-orange-900/40", textColor: "text-orange-600", dotColor: "bg-orange-500" },
+  { value: "rest", label: "Rest Day", icon: Coffee, bgColor: "bg-green-100 dark:bg-green-900/40", textColor: "text-green-600", dotColor: "bg-green-500" },
+  { value: "sick_leave", label: "Sick Leave", icon: Stethoscope, bgColor: "bg-red-100 dark:bg-red-900/40", textColor: "text-red-600", dotColor: "bg-red-500" },
+  { value: "annual_leave", label: "Annual Leave", icon: Palmtree, bgColor: "bg-amber-100 dark:bg-amber-900/40", textColor: "text-amber-600", dotColor: "bg-amber-500" },
+  { value: "custom", label: "Custom", icon: Tag, bgColor: "bg-purple-100 dark:bg-purple-900/40", textColor: "text-purple-600", dotColor: "bg-purple-500" },
+];
+
 function FinanceCalendarView() {
   const { data: transactions } = useTransactions();
   const { data: user } = useUser();
+  const { data: dayStatuses } = useDayStatuses();
+  const { data: events } = useEvents();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [visibleStatuses, setVisibleStatuses] = useState<Record<string, boolean>>({
+    working: true, standby: true, rest: true, sick_leave: true, annual_leave: true, custom: true, events: true
+  });
   
   const currency = user?.currency || "PHP";
   const rawPaydayDates = user?.paydayConfig?.dates || [15, 30];
   const paydayDates = Array.from(new Set(rawPaydayDates)).filter(d => d >= 1 && d <= 31).sort((a, b) => a - b);
+  
+  const dayStatusMap = (dayStatuses || []).reduce((acc, ds) => {
+    acc[ds.date] = ds;
+    return acc;
+  }, {} as Record<string, typeof dayStatuses extends (infer T)[] | undefined ? T : never>);
+  
+  const eventsMap = (events || []).reduce((acc, ev) => {
+    const dateStr = format(new Date(ev.startTime), "yyyy-MM-dd");
+    if (!acc[dateStr]) acc[dateStr] = [];
+    acc[dateStr].push(ev);
+    return acc;
+  }, {} as Record<string, typeof events>);
+  
+  const toggleStatus = (status: string) => {
+    setVisibleStatuses(prev => ({ ...prev, [status]: !prev[status] }));
+  };
   
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -879,14 +912,14 @@ function FinanceCalendarView() {
         </Card>
       )}
       
-      <div className="grid lg:grid-cols-5 gap-6">
-        <Card className="lg:col-span-3 shadow-md">
-          <CardHeader className="pb-2">
+      <Card className="shadow-md">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">{format(currentMonth, "MMMM yyyy")}</CardTitle>
+              <CardTitle className="text-xl">{format(currentMonth, "MMMM yyyy")}</CardTitle>
               <div className="flex gap-1">
                 <Button 
-                  variant="ghost" 
+                  variant="outline" 
                   size="icon"
                   onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
                   data-testid="button-prev-month"
@@ -894,7 +927,7 @@ function FinanceCalendarView() {
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
                 <Button 
-                  variant="ghost" 
+                  variant="outline" 
                   size="icon"
                   onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
                   data-testid="button-next-month"
@@ -903,111 +936,216 @@ function FinanceCalendarView() {
                 </Button>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <div className="grid grid-cols-7 gap-1 mb-1">
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-                <div key={i} className="text-center text-xs font-medium text-muted-foreground py-1">
-                  {day}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: startPadding }).map((_, i) => (
-                <div key={`pad-${i}`} className="h-12" />
-              ))}
-              {calendarDays.map(day => {
-                const summary = getDaySummary(day);
-                const isToday = isSameDay(day, new Date());
-                const isSelected = selectedDate && isSameDay(day, selectedDate);
-                const hasTransactions = summary.transactions.length > 0;
-                
+            
+            <div className="flex flex-wrap gap-2">
+              {statusConfig.map((status) => {
+                const Icon = status.icon;
+                const isVisible = visibleStatuses[status.value];
                 return (
-                  <button
-                    key={day.toISOString()}
-                    onClick={() => setSelectedDate(day)}
+                  <Button
+                    key={status.value}
+                    variant={isVisible ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleStatus(status.value)}
                     className={cn(
-                      "h-12 p-1 rounded text-xs transition-all relative flex flex-col items-center justify-start",
-                      isToday && "ring-2 ring-primary",
-                      isSelected && "bg-primary text-primary-foreground",
-                      !isSelected && hasTransactions && "bg-secondary/30",
-                      !isSelected && "hover:bg-secondary/50"
+                      "gap-1.5 text-xs",
+                      isVisible && status.bgColor,
+                      isVisible && status.textColor,
+                      isVisible && "border-transparent"
                     )}
-                    data-testid={`finance-day-${format(day, "yyyy-MM-dd")}`}
+                    data-testid={`toggle-status-${status.value}`}
                   >
-                    <span className="font-medium text-sm">{format(day, "d")}</span>
-                    {hasTransactions && (
-                      <div className="flex flex-col items-center text-[9px] leading-tight">
-                        {summary.income > 0 && (
-                          <span className={cn(
-                            "text-green-600",
-                            isSelected && "text-green-200"
-                          )}>
-                            +{summary.income >= 1000 ? `${(summary.income/1000).toFixed(0)}k` : summary.income}
-                          </span>
-                        )}
-                        {summary.expense > 0 && (
-                          <span className={cn(
-                            "text-red-600",
-                            isSelected && "text-red-200"
-                          )}>
-                            -{summary.expense >= 1000 ? `${(summary.expense/1000).toFixed(0)}k` : summary.expense}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </button>
+                    <Icon className="w-3.5 h-3.5" />
+                    {status.label}
+                    {isVisible ? <Eye className="w-3 h-3 ml-1" /> : <EyeOff className="w-3 h-3 ml-1 opacity-50" />}
+                  </Button>
                 );
               })}
+              <Button
+                variant={visibleStatuses.events ? "default" : "outline"}
+                size="sm"
+                onClick={() => toggleStatus("events")}
+                className={cn(
+                  "gap-1.5 text-xs",
+                  visibleStatuses.events && "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 border-transparent"
+                )}
+                data-testid="toggle-events"
+              >
+                <CalendarCheck className="w-3.5 h-3.5" />
+                Events
+                {visibleStatuses.events ? <Eye className="w-3 h-3 ml-1" /> : <EyeOff className="w-3 h-3 ml-1 opacity-50" />}
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="lg:col-span-2 shadow-md">
-          <CardHeader>
-            <CardTitle>
-              {selectedDate ? format(selectedDate, "MMMM d, yyyy") : "Select a Date"}
-            </CardTitle>
-            <CardDescription>
-              {selectedDate ? "Transactions for this day" : "Click on a day to see details"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {selectedDate ? (
-              <div className="space-y-4">
-                {(() => {
-                  const summary = getDaySummary(selectedDate);
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
+                  <div key={i} className="text-center text-sm font-medium text-muted-foreground py-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: startPadding }).map((_, i) => (
+                  <div key={`pad-${i}`} className="h-20" />
+                ))}
+                {calendarDays.map(day => {
+                  const dateStr = format(day, "yyyy-MM-dd");
+                  const summary = getDaySummary(day);
+                  const isToday = isSameDay(day, new Date());
+                  const isSelected = selectedDate && isSameDay(day, selectedDate);
+                  const hasTransactions = summary.transactions.length > 0;
+                  const dayStatus = dayStatusMap[dateStr];
+                  const dayEvents = eventsMap[dateStr] || [];
+                  const statusInfo = dayStatus ? statusConfig.find(s => s.value === dayStatus.status) : null;
+                  const showStatus = statusInfo && visibleStatuses[dayStatus?.status || ""];
+                  const showEvents = visibleStatuses.events && dayEvents.length > 0;
+                  
                   return (
-                    <>
-                      <div className="grid grid-cols-2 gap-4 pb-4 border-b">
-                        <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                          <p className="text-xs text-muted-foreground">Income</p>
-                          <p className="text-lg font-bold text-green-600">{formatCurrency(summary.income, currency)}</p>
+                    <button
+                      key={day.toISOString()}
+                      onClick={() => setSelectedDate(day)}
+                      className={cn(
+                        "h-20 p-1.5 rounded-lg text-xs transition-all relative flex flex-col items-start justify-start border",
+                        isToday && "ring-2 ring-primary ring-offset-1",
+                        isSelected && "bg-primary/10 border-primary",
+                        !isSelected && "border-transparent hover:border-primary/30 hover:bg-secondary/30"
+                      )}
+                      data-testid={`finance-day-${dateStr}`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className={cn(
+                          "font-semibold text-sm",
+                          isToday && "text-primary"
+                        )}>{format(day, "d")}</span>
+                        {showStatus && statusInfo && (
+                          <div className={cn("w-2.5 h-2.5 rounded-full", statusInfo.dotColor)} title={statusInfo.label} />
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col gap-0.5 w-full flex-1 overflow-hidden">
+                        {showStatus && statusInfo && (
+                          <div className={cn("flex items-center gap-1 px-1 py-0.5 rounded text-[10px] truncate", statusInfo.bgColor, statusInfo.textColor)}>
+                            {(() => { const SIcon = statusInfo.icon; return <SIcon className="w-2.5 h-2.5 flex-shrink-0" />; })()}
+                            <span className="truncate">{dayStatus?.customLabel || statusInfo.label}</span>
+                          </div>
+                        )}
+                        
+                        {showEvents && (
+                          <div className="flex items-center gap-1 px-1 py-0.5 rounded text-[10px] bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 truncate">
+                            <CalendarCheck className="w-2.5 h-2.5 flex-shrink-0" />
+                            <span className="truncate">{dayEvents.length} event{dayEvents.length > 1 ? 's' : ''}</span>
+                          </div>
+                        )}
+                        
+                        {hasTransactions && (
+                          <div className="flex gap-1 text-[10px] mt-auto">
+                            {summary.income > 0 && (
+                              <span className="text-green-600 font-medium">+{summary.income >= 1000 ? `${(summary.income/1000).toFixed(0)}k` : summary.income}</span>
+                            )}
+                            {summary.expense > 0 && (
+                              <span className="text-red-600 font-medium">-{summary.expense >= 1000 ? `${(summary.expense/1000).toFixed(0)}k` : summary.expense}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div>
+              <Card className="shadow-sm border-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">
+                    {selectedDate ? format(selectedDate, "EEEE, MMMM d") : "Select a Date"}
+                  </CardTitle>
+                  {selectedDate && (
+                    <CardDescription>
+                      {(() => {
+                        const dateStr = format(selectedDate, "yyyy-MM-dd");
+                        const status = dayStatusMap[dateStr];
+                        const dayEvents = eventsMap[dateStr] || [];
+                        const statusInfo = status ? statusConfig.find(s => s.value === status.status) : null;
+                        return (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {statusInfo && (
+                              <Badge variant="secondary" className={cn("text-xs", statusInfo.bgColor, statusInfo.textColor)}>
+                                {(() => { const SIcon = statusInfo.icon; return <SIcon className="w-3 h-3 mr-1" />; })()}
+                                {status?.customLabel || statusInfo.label}
+                              </Badge>
+                            )}
+                            {dayEvents.length > 0 && (
+                              <Badge variant="secondary" className="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600">
+                                <CalendarCheck className="w-3 h-3 mr-1" />
+                                {dayEvents.length} event{dayEvents.length > 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {selectedDate ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3 pb-3 border-b">
+                        <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <p className="text-[10px] text-muted-foreground">Income</p>
+                          <p className="text-sm font-bold text-green-600">{formatCurrency(getDaySummary(selectedDate).income, currency)}</p>
                         </div>
-                        <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                          <p className="text-xs text-muted-foreground">Expenses</p>
-                          <p className="text-lg font-bold text-red-600">{formatCurrency(summary.expense, currency)}</p>
+                        <div className="text-center p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <p className="text-[10px] text-muted-foreground">Expenses</p>
+                          <p className="text-sm font-bold text-red-600">{formatCurrency(getDaySummary(selectedDate).expense, currency)}</p>
                         </div>
                       </div>
                       
-                      {summary.transactions.length > 0 ? (
-                        <div className="space-y-3 max-h-64 overflow-y-auto">
-                          {summary.transactions.map(t => (
-                            <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30" data-testid={`finance-tx-${t.id}`}>
-                              <div className="flex items-center gap-3">
+                      {(() => {
+                        const dateStr = format(selectedDate, "yyyy-MM-dd");
+                        const dayEvents = eventsMap[dateStr] || [];
+                        if (dayEvents.length > 0) {
+                          return (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-muted-foreground">Events</p>
+                              {dayEvents.map(ev => (
+                                <div key={ev.id} className="flex items-center gap-2 p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
+                                  <CalendarCheck className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-sm truncate">{ev.title}</p>
+                                    <p className="text-xs text-muted-foreground">{format(new Date(ev.startTime), "h:mm a")}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                      {getDaySummary(selectedDate).transactions.length > 0 ? (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          <p className="text-xs font-medium text-muted-foreground">Transactions</p>
+                          {getDaySummary(selectedDate).transactions.map(t => (
+                            <div key={t.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30" data-testid={`finance-tx-${t.id}`}>
+                              <div className="flex items-center gap-2 min-w-0">
                                 <div className={cn(
-                                  "p-2 rounded-lg",
+                                  "p-1.5 rounded-lg flex-shrink-0",
                                   t.type === 'income' ? "bg-green-100 text-green-600 dark:bg-green-900/30" : "bg-red-100 text-red-600 dark:bg-red-900/30"
                                 )}>
-                                  {t.type === 'income' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                  {t.type === 'income' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                 </div>
-                                <div>
-                                  <p className="font-medium text-sm">{t.category}</p>
-                                  {t.note && <p className="text-xs text-muted-foreground">{t.note}</p>}
+                                <div className="min-w-0">
+                                  <p className="font-medium text-xs truncate">{t.category}</p>
+                                  {t.note && <p className="text-[10px] text-muted-foreground truncate">{t.note}</p>}
                                 </div>
                               </div>
                               <span className={cn(
-                                "font-bold",
+                                "font-bold text-xs flex-shrink-0",
                                 t.type === 'income' ? "text-green-600" : "text-red-600"
                               )}>
                                 {t.type === 'income' ? '+' : '-'}{formatCurrency(Number(t.amount), currency)}
@@ -1016,23 +1154,23 @@ function FinanceCalendarView() {
                           ))}
                         </div>
                       ) : (
-                        <div className="text-center py-6 text-muted-foreground">
-                          No transactions for this day
+                        <div className="text-center py-4 text-muted-foreground text-sm">
+                          No transactions
                         </div>
                       )}
-                    </>
-                  );
-                })()}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <CalendarDays className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Select a date to view transactions</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CalendarDays className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Select a date</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
