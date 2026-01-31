@@ -123,10 +123,10 @@ export default function CalendarPage() {
 
   return (
     <Shell>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-display font-bold">Calendar</h1>
-          <p className="text-muted-foreground">Plan your activities and track your days.</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold">Calendar</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Plan your activities and track your days.</p>
         </div>
         <Dialog open={isOpen} onOpenChange={(open) => {
           setIsOpen(open);
@@ -209,17 +209,18 @@ export default function CalendarPage() {
                 </Button>
               </div>
               
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {WEEKDAYS.map(day => (
-                  <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
-                    {day}
+              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2">
+                {WEEKDAYS.map((day, i) => (
+                  <div key={day} className="text-center text-[10px] sm:text-xs font-medium text-muted-foreground py-1 sm:py-2">
+                    <span className="hidden sm:inline">{day}</span>
+                    <span className="sm:hidden">{day.charAt(0)}</span>
                   </div>
                 ))}
               </div>
               
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
                 {Array.from({ length: startPadding }).map((_, i) => (
-                  <div key={`pad-${i}`} className="h-28" />
+                  <div key={`pad-${i}`} className="h-14 sm:h-20 lg:h-28" />
                 ))}
                 {calendarDays.map(day => {
                   const dateStr = format(day, "yyyy-MM-dd");
@@ -235,7 +236,7 @@ export default function CalendarPage() {
                       key={day.toISOString()}
                       onClick={() => setSelectedDate(day)}
                       className={cn(
-                        "h-28 p-1.5 rounded-lg text-xs transition-all relative flex flex-col items-start border",
+                        "h-14 sm:h-20 lg:h-28 p-1 sm:p-1.5 rounded-md sm:rounded-lg text-xs transition-all relative flex flex-col items-start border",
                         isTodayDate && "ring-2 ring-primary ring-offset-1",
                         isSelected && "bg-primary/10 border-primary",
                         statusInfo && !isSelected && statusInfo.color,
@@ -243,24 +244,26 @@ export default function CalendarPage() {
                       )}
                       data-testid={`calendar-day-${dateStr}`}
                     >
-                      <div className="flex items-center justify-between w-full mb-1">
+                      <div className="flex items-center justify-between w-full">
                         <span className={cn(
-                          "font-semibold text-sm",
+                          "font-semibold text-xs sm:text-sm",
                           isTodayDate && "text-primary"
                         )}>{format(day, "d")}</span>
                         {StatusIcon && (
-                          <StatusIcon className={cn("w-3 h-3", statusInfo.color.split(' ')[0])} />
+                          <StatusIcon className={cn("w-2.5 h-2.5 sm:w-3 sm:h-3", statusInfo.color.split(' ')[0])} />
                         )}
                       </div>
                       
-                      {dayStatus?.status === "custom" && dayStatus.customLabel && (
-                        <div className="text-[9px] text-purple-600 font-medium truncate w-full mb-0.5">
-                          {dayStatus.customLabel}
-                        </div>
-                      )}
+                      <div className="hidden sm:block">
+                        {dayStatus?.status === "custom" && dayStatus.customLabel && (
+                          <div className="text-[9px] text-purple-600 font-medium truncate w-full mb-0.5">
+                            {dayStatus.customLabel}
+                          </div>
+                        )}
+                      </div>
                       
-                      <div className="flex flex-col gap-0.5 w-full flex-1 overflow-hidden">
-                        {dayEvents.slice(0, 3).map(event => {
+                      <div className="hidden sm:flex flex-col gap-0.5 w-full flex-1 overflow-hidden">
+                        {dayEvents.slice(0, 2).map(event => {
                           const categoryColors: Record<string, string> = {
                             work: "bg-blue-500",
                             personal: "bg-green-500",
@@ -275,14 +278,21 @@ export default function CalendarPage() {
                               title={`${event.title} - ${format(new Date(event.startTime), "h:mm a")}`}
                             >
                               <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", categoryColors[event.category || 'general'])} />
-                              <span className="truncate text-[10px]">{event.title}</span>
+                              <span className="truncate text-[9px] lg:text-[10px]">{event.title}</span>
                             </div>
                           );
                         })}
-                        {dayEvents.length > 3 && (
-                          <span className="text-[9px] text-muted-foreground">+{dayEvents.length - 3} more</span>
+                        {dayEvents.length > 2 && (
+                          <span className="text-[9px] text-muted-foreground">+{dayEvents.length - 2} more</span>
                         )}
                       </div>
+                      {dayEvents.length > 0 && (
+                        <div className="sm:hidden absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
+                          {dayEvents.slice(0, 3).map((_, i) => (
+                            <div key={i} className="w-1 h-1 rounded-full bg-primary" />
+                          ))}
+                        </div>
+                      )}
                     </button>
                   );
                 })}

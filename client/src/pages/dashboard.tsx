@@ -128,25 +128,25 @@ export default function Dashboard() {
 
   return (
     <Shell>
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold" data-testid="text-greeting">
+            <h1 className="text-2xl sm:text-3xl font-display font-bold" data-testid="text-greeting">
               {greeting}, {user?.displayName || user?.username}
             </h1>
-            <p className="text-muted-foreground mt-1">{format(new Date(), "EEEE, MMMM do, yyyy")}</p>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">{format(new Date(), "EEEE, MMMM do, yyyy")}</p>
           </div>
           <div className="flex gap-4">
             <div className={cn(
-              "px-4 py-2 rounded-xl shadow-sm border flex items-center gap-2",
+              "px-3 sm:px-4 py-2 rounded-xl shadow-sm border flex items-center gap-2",
               statusInfo.bg
             )} data-testid="card-today-status">
-              <StatusIcon className={cn("w-5 h-5", statusInfo.color)} />
+              <StatusIcon className={cn("w-4 h-4 sm:w-5 sm:h-5", statusInfo.color)} />
               <div>
-                <div className="font-semibold text-sm">
+                <div className="font-semibold text-xs sm:text-sm">
                   {todayStatus?.status === "custom" ? todayStatus.customLabel : statusInfo.label}
                 </div>
-                <div className="text-xs text-muted-foreground">Today's Status</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">Today's Status</div>
               </div>
             </div>
           </div>

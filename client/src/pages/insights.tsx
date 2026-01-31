@@ -252,13 +252,13 @@ export default function InsightsPage() {
 
   return (
     <Shell>
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold">Insights</h1>
-        <p className="text-muted-foreground">Track your progress across all areas of life.</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Insights</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Track your progress across all areas of life.</p>
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 sm:mb-8">
         <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border-green-200 dark:border-green-800">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">

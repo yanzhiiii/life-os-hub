@@ -61,10 +61,10 @@ export default function JournalPage() {
 
   return (
     <Shell>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-display font-bold">Journal</h1>
-          <p className="text-muted-foreground">Reflect on your thoughts and track your mood.</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold">Journal</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Reflect on your thoughts and track your mood.</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>

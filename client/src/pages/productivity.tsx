@@ -40,26 +40,26 @@ const goalSchema = z.object({
 export default function Productivity() {
   return (
     <Shell>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-display font-bold">Productivity</h1>
-          <p className="text-muted-foreground">Manage your tasks, routines, and long-term goals.</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold">Productivity</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage your tasks, routines, and long-term goals.</p>
         </div>
       </div>
 
       <Tabs defaultValue="tasks" className="space-y-6">
-        <TabsList className="bg-secondary/50 p-1 rounded-xl">
-          <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-tasks">
-            <CheckSquare className="w-4 h-4 mr-2" />Tasks
+        <TabsList className="bg-secondary/50 p-1 rounded-xl w-full flex-wrap h-auto gap-1">
+          <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 min-w-[80px]" data-testid="tab-tasks">
+            <CheckSquare className="w-4 h-4 mr-1 sm:mr-2" /><span className="hidden sm:inline">Tasks</span><span className="sm:hidden">Tasks</span>
           </TabsTrigger>
-          <TabsTrigger value="routines" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-routines">
-            <Flame className="w-4 h-4 mr-2" />Routines
+          <TabsTrigger value="routines" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 min-w-[80px]" data-testid="tab-routines">
+            <Flame className="w-4 h-4 mr-1 sm:mr-2" /><span className="hidden sm:inline">Routines</span><span className="sm:hidden">Habits</span>
           </TabsTrigger>
-          <TabsTrigger value="goals" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-goals">
-            <Target className="w-4 h-4 mr-2" />Goals
+          <TabsTrigger value="goals" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 min-w-[80px]" data-testid="tab-goals">
+            <Target className="w-4 h-4 mr-1 sm:mr-2" /><span className="hidden sm:inline">Goals</span><span className="sm:hidden">Goals</span>
           </TabsTrigger>
-          <TabsTrigger value="pomodoro" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-pomodoro">
-            <Timer className="w-4 h-4 mr-2" />Pomodoro
+          <TabsTrigger value="pomodoro" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 min-w-[80px]" data-testid="tab-pomodoro">
+            <Timer className="w-4 h-4 mr-1 sm:mr-2" /><span className="hidden sm:inline">Pomodoro</span><span className="sm:hidden">Timer</span>
           </TabsTrigger>
         </TabsList>
 
@@ -134,8 +134,8 @@ function TaskList() {
               <DialogTitle>Create New Task</DialogTitle>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
-              <Input placeholder="What needs to be done?" {...form.register("title")} data-testid="input-task-title" />
-              <div className="grid grid-cols-2 gap-4">
+              <Input placeholder="What needs to be done?" {...form.register("title")} data-testid="input-task-title" autoComplete="off" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Select onValueChange={(v) => form.setValue("priority", v as any)} defaultValue="medium">
                   <SelectTrigger data-testid="select-task-priority">
                     <SelectValue placeholder="Priority" />
@@ -146,11 +146,16 @@ function TaskList() {
                     <SelectItem value="high">High</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input type="date" {...form.register("dueDate")} data-testid="input-task-due" />
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm text-muted-foreground">Due Date (optional)</label>
+                  <Input type="date" {...form.register("dueDate")} data-testid="input-task-due" />
+                </div>
               </div>
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
                 <Button variant="outline" type="button" onClick={() => setIsOpen(false)}>Cancel</Button>
-                <Button type="submit" data-testid="button-save-task">Create Task</Button>
+                <Button type="submit" data-testid="button-save-task">
+                  Create Task
+                </Button>
               </div>
             </form>
           </DialogContent>

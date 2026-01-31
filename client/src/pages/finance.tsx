@@ -71,24 +71,24 @@ const savingsSchema = z.object({
 export default function Finance() {
   return (
     <Shell>
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold">Financial Overview</h1>
-        <p className="text-muted-foreground">Track income, expenses, debts, and savings goals.</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Financial Overview</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Track income, expenses, debts, and savings goals.</p>
       </div>
 
       <Tabs defaultValue="transactions" className="space-y-6">
-        <TabsList className="bg-secondary/50 p-1 rounded-xl flex-wrap">
-          <TabsTrigger value="transactions" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-transactions">
-            <Wallet className="w-4 h-4 mr-2" />Transactions
+        <TabsList className="bg-secondary/50 p-1 rounded-xl w-full flex-wrap h-auto gap-1">
+          <TabsTrigger value="transactions" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 min-w-[70px]" data-testid="tab-transactions">
+            <Wallet className="w-4 h-4 mr-1 sm:mr-2" /><span className="hidden sm:inline">Transactions</span><span className="sm:hidden">Trans</span>
           </TabsTrigger>
-          <TabsTrigger value="calendar" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-finance-calendar">
-            <CalendarDays className="w-4 h-4 mr-2" />Calendar
+          <TabsTrigger value="calendar" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 min-w-[70px]" data-testid="tab-finance-calendar">
+            <CalendarDays className="w-4 h-4 mr-1 sm:mr-2" /><span className="hidden sm:inline">Calendar</span><span className="sm:hidden">Cal</span>
           </TabsTrigger>
-          <TabsTrigger value="debts" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-debts">
-            <Link2 className="w-4 h-4 mr-2" />Debts
+          <TabsTrigger value="debts" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 min-w-[70px]" data-testid="tab-debts">
+            <Link2 className="w-4 h-4 mr-1 sm:mr-2" />Debts
           </TabsTrigger>
-          <TabsTrigger value="savings" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-savings">
-            <PiggyBank className="w-4 h-4 mr-2" />Savings
+          <TabsTrigger value="savings" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 min-w-[70px]" data-testid="tab-savings">
+            <PiggyBank className="w-4 h-4 mr-1 sm:mr-2" /><span className="hidden sm:inline">Savings</span><span className="sm:hidden">Save</span>
           </TabsTrigger>
         </TabsList>
 

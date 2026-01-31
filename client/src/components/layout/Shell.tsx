@@ -1,4 +1,4 @@
-import { Sidebar } from "./Sidebar";
+import { Sidebar, MobileNav } from "./Sidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ShellProps {
@@ -12,13 +12,14 @@ export function Shell({ children }: ShellProps) {
         <Sidebar />
       </div>
       <ScrollArea className="flex-1 h-screen">
-        <main className="p-6 md:p-10 max-w-7xl mx-auto animate-in fade-in duration-500">
+        <main className="p-4 pb-20 md:pb-6 md:p-10 max-w-7xl mx-auto animate-in fade-in duration-500">
           {children}
         </main>
-        <footer className="text-center text-xs text-muted-foreground py-4 border-t border-border/30">
+        <footer className="hidden md:block text-center text-xs text-muted-foreground py-4 border-t border-border/30">
           © 2026 Edric Kristian L. Gantes. All rights reserved.
         </footer>
       </ScrollArea>
+      <MobileNav />
     </div>
   );
 }

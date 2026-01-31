@@ -9,11 +9,15 @@ import {
   LogOut,
   User,
   Settings,
-  Info
+  Info,
+  Menu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLogout, useUser } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useState } from "react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/", testId: "nav-dashboard" },
@@ -82,5 +86,117 @@ export function Sidebar() {
         </div>
       </div>
     </div>
+  );
+}
+
+const mobileNavItems = [
+  { icon: LayoutDashboard, label: "Home", href: "/", testId: "mobile-nav-dashboard" },
+  { icon: CheckSquare, label: "Tasks", href: "/productivity", testId: "mobile-nav-productivity" },
+  { icon: CalendarIcon, label: "Calendar", href: "/calendar", testId: "mobile-nav-calendar" },
+  { icon: DollarSign, label: "Finance", href: "/finance", testId: "mobile-nav-finance" },
+  { icon: Menu, label: "More", href: "#more", testId: "mobile-nav-more" },
+];
+
+export function MobileNav() {
+  const [location, setLocation] = useLocation();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const { data: user } = useUser();
+  const { mutate: logout } = useLogout();
+
+  const handleNavClick = (href: string) => {
+    if (href === "#more") {
+      setSheetOpen(true);
+    } else {
+      setLocation(href);
+    }
+  };
+
+  return (
+    <>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border/50 z-50 safe-area-inset-bottom">
+        <div className="flex items-center justify-around py-2 px-1">
+          {mobileNavItems.map((item) => {
+            const isActive = item.href === "#more" ? false : location === item.href;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.href}
+                onClick={() => handleNavClick(item.href)}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-[60px]",
+                  isActive 
+                    ? "text-primary bg-primary/10" 
+                    : "text-muted-foreground"
+                )}
+                data-testid={item.testId}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="h-auto max-h-[80vh] rounded-t-2xl">
+          <div className="py-4 space-y-2">
+            <div className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-secondary/30">
+              <Avatar className="h-10 w-10 border border-primary/20">
+                <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                  {user?.username?.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">{user?.displayName || user?.username}</p>
+                <p className="text-xs text-muted-foreground">Life OS Hub</p>
+              </div>
+            </div>
+
+            {menuItems.filter(item => !["/", "/productivity", "/calendar", "/finance"].includes(item.href)).map((item) => {
+              const Icon = item.icon;
+              const isActive = location === item.href;
+              return (
+                <button
+                  key={item.href}
+                  onClick={() => {
+                    setLocation(item.href);
+                    setSheetOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
+                    isActive 
+                      ? "bg-primary/10 text-primary" 
+                      : "text-muted-foreground hover:bg-secondary"
+                  )}
+                  data-testid={`mobile-${item.testId}`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              );
+            })}
+
+            <button
+              onClick={() => {
+                logout();
+                setSheetOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-destructive hover:bg-destructive/10 transition-all"
+              data-testid="mobile-button-logout"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="font-medium">Sign Out</span>
+            </button>
+
+            <div className="pt-4 mt-4 border-t border-border/30">
+              <p className="text-center text-xs text-muted-foreground">
+                © 2026 Edric Kristian L. Gantes. All rights reserved.
+              </p>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

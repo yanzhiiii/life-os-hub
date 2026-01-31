@@ -71,12 +71,12 @@ export default function SettingsPage() {
 
   return (
     <Shell>
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and preferences.</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Settings</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Manage your account and preferences.</p>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
+      <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
         <div className="lg:col-span-2 space-y-8">
           <Card className="shadow-lg">
             <CardHeader>
