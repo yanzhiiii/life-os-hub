@@ -98,7 +98,11 @@ Preferred communication style: Simple, everyday language.
 ### Frontend Pages Implemented
 - **Calendar Page** (`/calendar`) - Full month grid view with day cells showing work status, events, and status icons; event creation with date pre-population; day status tracking (Working Day, Standby, Rest Day, Sick Leave, Annual Leave, Custom); status legend
 - **Journal Page** (`/journal`) - Entry list with mood tracking (5 moods: happy, neutral, sad, excited, grateful), full CRUD
-- **Insights Page** (`/insights`) - Charts for spending by category, income vs expenses, productivity completion rates, cross-module insights (mood vs spending, mood vs productivity, life balance radar)
+- **Insights Page** (`/insights`) - **MAJOR UPDATE**: Now organized into 4 tabs (Overview, Finance, Productivity, Wellness) with comprehensive statistics:
+  - **Overview Tab**: Key metrics cards (net balance, tasks done, goals progress, today's routines), This Month Summary (income, expenses, savings rate, daily avg spend), Life Balance radar, Quick Stats section
+  - **Finance Tab**: Financial KPIs (total income, expenses, saved, debt), 6-month trend chart, spending by category pie chart, debt payoff and savings goal progress bars with individual goal breakdowns, top spending category highlight
+  - **Productivity Tab**: Task completion rate, pending tasks, priority breakdown chart, weekly productivity bar chart, goals & milestones progress section, today's routine circular progress indicator
+  - **Wellness Tab**: Mood statistics (avg score, journal count, most common mood), weekly mood trend line chart, mood distribution visualization, cross-module correlations (mood vs spending, mood vs productivity)
 - **Settings Page** (`/settings`) - Profile editing, currency selection, payday configuration, dark/light theme toggle with database persistence
 
 ### Enhanced Modules
