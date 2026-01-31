@@ -623,9 +623,31 @@ function FinanceCalendarView() {
   const { data: recurringTemplates } = useRecurringTemplates();
   const { mutate: createRecurring, isPending: isCreating } = useCreateRecurringTemplate();
   const { mutate: deleteRecurring } = useDeleteRecurringTemplate();
+  const { mutate: createTransaction, isPending: isCreatingTx } = useCreateTransaction();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showRecurringDialog, setShowRecurringDialog] = useState(false);
+  const [showTransactionDialog, setShowTransactionDialog] = useState(false);
+  
+  const transactionForm = useForm<z.infer<typeof transactionSchema>>({
+    resolver: zodResolver(transactionSchema),
+    defaultValues: {
+      type: "expense",
+      amount: 0,
+      category: "Food",
+      date: new Date(),
+      note: ""
+    }
+  });
+  
+  const onSubmitTransaction = (data: z.infer<typeof transactionSchema>) => {
+    createTransaction({ ...data, amount: String(data.amount) }, {
+      onSuccess: () => {
+        setShowTransactionDialog(false);
+        transactionForm.reset();
+      }
+    });
+  };
   
   const recurringForm = useForm<RecurringFormData>({
     resolver: zodResolver(recurringSchema),
@@ -1219,10 +1241,118 @@ function FinanceCalendarView() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl">{format(currentMonth, "MMMM yyyy")}</CardTitle>
               <div className="flex gap-2">
+                <Dialog open={showTransactionDialog} onOpenChange={(open) => {
+                  setShowTransactionDialog(open);
+                  if (open && selectedDate) {
+                    transactionForm.setValue("date", selectedDate);
+                  }
+                }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1.5" data-testid="button-add-transaction">
+                      <Plus className="w-4 h-4" />
+                      Add Transaction
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Transaction{selectedDate ? ` for ${format(selectedDate, "MMMM d, yyyy")}` : ""}</DialogTitle>
+                    </DialogHeader>
+                    <Form {...transactionForm}>
+                      <form onSubmit={transactionForm.handleSubmit(onSubmitTransaction)} className="space-y-4 pt-4">
+                        <FormField
+                          control={transactionForm.control}
+                          name="type"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Type</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-tx-type">
+                                    <SelectValue placeholder="Select type" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="income">Income</SelectItem>
+                                  <SelectItem value="expense">Expense</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={transactionForm.control}
+                          name="amount"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Amount</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="0" {...field} data-testid="input-tx-amount" />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={transactionForm.control}
+                          name="category"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Category</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-tx-category">
+                                    <SelectValue placeholder="Select category" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {EXPENSE_CATEGORIES.map(cat => (
+                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={transactionForm.control}
+                          name="date"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Date</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  type="date" 
+                                  value={field.value instanceof Date ? format(field.value, "yyyy-MM-dd") : ""}
+                                  onChange={(e) => field.onChange(new Date(e.target.value))}
+                                  data-testid="input-tx-date"
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={transactionForm.control}
+                          name="note"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Note (optional)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g., Groceries" {...field} value={field.value || ""} data-testid="input-tx-note" />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <Button type="submit" className="w-full" disabled={isCreatingTx} data-testid="button-save-tx">
+                          {isCreatingTx ? 'Saving...' : 'Save Transaction'}
+                        </Button>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+                
                 <Dialog open={showRecurringDialog} onOpenChange={setShowRecurringDialog}>
                   <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1.5" data-testid="button-add-recurring">
-                      <Plus className="w-4 h-4" />
+                    <Button size="sm" variant="outline" className="gap-1.5" data-testid="button-add-recurring">
+                      <Repeat className="w-4 h-4" />
                       Recurring
                     </Button>
                   </DialogTrigger>
@@ -1586,7 +1716,7 @@ function FinanceCalendarView() {
                                     <div className="flex items-center gap-2 min-w-0">
                                       <Repeat className="w-4 h-4 text-purple-600 flex-shrink-0" />
                                       <div className="min-w-0">
-                                        <p className="font-medium text-sm truncate">{r.name}</p>
+                                        <p className="font-medium text-sm truncate">{r.name || r.category}</p>
                                         <p className="text-xs text-muted-foreground truncate">
                                           {r.category} • {getFrequencyLabel(r)}
                                         </p>
@@ -1660,7 +1790,7 @@ function FinanceCalendarView() {
                       {(recurringTemplates || []).filter(r => r.isActive).map(r => (
                         <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30" data-testid={`recurring-${r.id}`}>
                           <div className="min-w-0">
-                            <p className="font-medium text-xs truncate">{r.name}</p>
+                            <p className="font-medium text-xs truncate">{r.name || r.category}</p>
                             <p className="text-[10px] text-muted-foreground">
                               {r.frequency === 'weekly' ? `Every ${DAYS_OF_WEEK[r.dayOfWeek || 0]}` : `Day ${r.dayOfMonth}`}
                             </p>

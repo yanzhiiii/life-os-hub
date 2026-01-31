@@ -35,6 +35,10 @@ const insertEventSchemaCoerced = insertEventSchema.extend({
   ),
 });
 
+const insertTransactionSchemaCoerced = insertTransactionSchema.extend({
+  date: z.coerce.date(),
+});
+
 // ============================================
 // SHARED ERROR SCHEMAS
 // ============================================
@@ -242,7 +246,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/transactions',
-      input: insertTransactionSchema,
+      input: insertTransactionSchemaCoerced,
       responses: { 201: z.custom<typeof transactions.$inferSelect>() },
     },
     delete: {
