@@ -59,3 +59,21 @@ export function useLogRoutineCompletion() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.routines.getCompletions.path] }),
   });
 }
+
+export function useDeleteRoutine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = buildUrl(api.routines.delete.path, { id });
+      const res = await fetch(url, {
+        method: api.routines.delete.method,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete routine");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.routines.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.routines.getCompletions.path] });
+    },
+  });
+}
