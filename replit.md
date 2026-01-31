@@ -141,8 +141,17 @@ Preferred communication style: Simple, everyday language.
 - Life Balance radar chart (finances, tasks, goals, routines, mood, savings)
 - Weekly mood trend line chart
 
+### Responsive Design (January 2026)
+- **Mobile Navigation** (`MobileNav` component in Sidebar.tsx): Bottom navigation bar with 5 tabs (Home, Tasks, Calendar, Finance, More)
+- **Mobile "More" Sheet**: Opens from bottom with access to Journal, Insights, Settings, About, and Sign Out
+- **Adaptive Layouts**: All pages use responsive breakpoints (sm/md/lg) for grids, typography, and spacing
+- **Calendar Grid**: Compact cells on mobile with dot indicators for events; full details on tablet/desktop
+- **Tab Labels**: Shortened labels on mobile screens (e.g., "Transactions" → "Trans")
+- **Copyright Footer**: Visible in sidebar on desktop, in "More" sheet on mobile
+
 ### Design Patterns
 - All navigation links use `data-testid="nav-{page}"` format
+- Mobile nav uses `data-testid="mobile-nav-{page}"` format
 - Tab triggers use `data-testid="tab-{tabname}"` format
 - Theme toggle persists to localStorage
 - Routine steps and goal milestones entered as newline-separated text, transformed to arrays on submit
