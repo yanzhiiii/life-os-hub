@@ -221,70 +221,61 @@ export default function CalendarPage() {
         </Dialog>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid lg:grid-cols-3 gap-4 lg:gap-6">
+        {/* Left: Calendar Grid */}
+        <div className="lg:col-span-2 space-y-4">
           <Card className="shadow-lg">
-            <CardContent className="p-4">
-              <div className="flex justify-between items-center mb-4">
+            <CardContent className="p-3 sm:p-4">
+              {/* Month Navigation */}
+              <div className="flex justify-between items-center mb-3">
                 <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} data-testid="button-prev-month">
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
-                <h3 className="text-xl font-bold">{format(currentMonth, "MMMM yyyy")}</h3>
+                <h3 className="text-lg sm:text-xl font-bold">{format(currentMonth, "MMMM yyyy")}</h3>
                 <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} data-testid="button-next-month">
                   <ChevronRight className="w-5 h-5" />
                 </Button>
               </div>
               
-              {/* Paint Mode Toolbar */}
-              <div className="mb-4 p-3 rounded-lg bg-secondary/30 border">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                  <p className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                    {paintMode ? "Click days to apply:" : "Quick Status:"}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {dayStatusOptions.filter(o => o.value !== "custom").map((option) => {
-                      const Icon = option.icon;
-                      const isActive = paintMode === option.value;
-                      return (
-                        <Button
-                          key={option.value}
-                          variant={isActive ? "default" : "outline"}
-                          size="sm"
-                          className={cn(
-                            "h-8 px-2.5 gap-1.5",
-                            isActive && option.color
-                          )}
-                          onClick={() => setPaintMode(isActive ? null : option.value)}
-                          data-testid={`paint-status-${option.value}`}
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline text-xs">{option.label}</span>
-                        </Button>
-                      );
-                    })}
-                    {paintMode && (
+              {/* Paint Mode Toolbar - Compact */}
+              <div className="mb-3 p-2 sm:p-3 rounded-lg bg-secondary/30 border">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {paintMode ? "Painting:" : "Paint:"}
+                  </span>
+                  {dayStatusOptions.filter(o => o.value !== "custom").map((option) => {
+                    const Icon = option.icon;
+                    const isActive = paintMode === option.value;
+                    return (
                       <Button
-                        variant="ghost"
+                        key={option.value}
+                        variant={isActive ? "default" : "ghost"}
                         size="sm"
-                        className="h-8 px-2.5 text-muted-foreground"
-                        onClick={() => setPaintMode(null)}
-                        data-testid="paint-mode-cancel"
+                        className={cn(
+                          "h-7 w-7 p-0 sm:h-8 sm:w-auto sm:px-2 sm:gap-1.5",
+                          isActive && option.color
+                        )}
+                        onClick={() => setPaintMode(isActive ? null : option.value)}
+                        title={option.label}
+                        data-testid={`paint-status-${option.value}`}
                       >
-                        Cancel
+                        <Icon className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline text-xs">{option.label}</span>
                       </Button>
-                    )}
-                  </div>
+                    );
+                  })}
+                  {paintMode && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 sm:h-8 px-2 text-xs"
+                      onClick={() => setPaintMode(null)}
+                      data-testid="paint-mode-cancel"
+                    >
+                      Done
+                    </Button>
+                  )}
                 </div>
-                {paintMode && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Click on calendar days to set them as "{dayStatusOptions.find(o => o.value === paintMode)?.label}". Double-click any day to add an event.
-                  </p>
-                )}
-                {!paintMode && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Select a status above, then click days to apply. Double-click any day to add an event.
-                  </p>
-                )}
               </div>
               
               <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2">
@@ -395,53 +386,53 @@ export default function CalendarPage() {
                 })}
               </div>
               
-              <div className="mt-4 pt-3 border-t">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Day Status Legend</p>
-                <div className="flex flex-wrap gap-3">
-                  {dayStatusOptions.filter(o => o.value !== "custom").map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <div key={option.value} className="flex items-center gap-1.5 text-xs">
-                        <div className={cn("w-4 h-4 rounded flex items-center justify-center", option.color)}>
-                          <Icon className="w-2.5 h-2.5" />
-                        </div>
-                        <span className="text-muted-foreground">{option.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+              {/* Compact Legend */}
+              <div className="mt-3 pt-2 border-t flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-[10px] text-muted-foreground">Legend:</span>
+                {dayStatusOptions.filter(o => o.value !== "custom").map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <div key={option.value} className="flex items-center gap-1 text-[10px]">
+                      <Icon className={cn("w-3 h-3", option.color.split(' ')[0])} />
+                      <span className="text-muted-foreground hidden sm:inline">{option.label}</span>
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
 
           <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>Upcoming Events</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CalendarDays className="w-4 h-4" />
+                Upcoming Events
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {upcomingEvents.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">No upcoming events</p>
+                <p className="text-muted-foreground text-center py-3 text-sm">No upcoming events</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {upcomingEvents.map((event) => {
                     const eventDate = new Date(event.startTime);
                     const daysToGo = differenceInDays(eventDate, new Date());
-                    const daysLabel = daysToGo === 0 ? "Today" : daysToGo === 1 ? "Tomorrow" : `${daysToGo} days to go`;
+                    const daysLabel = daysToGo === 0 ? "Today" : daysToGo === 1 ? "Tomorrow" : `${daysToGo}d`;
                     
                     return (
-                      <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30" data-testid={`upcoming-event-${event.id}`}>
-                        <div>
-                          <p className="font-medium">{event.title}</p>
-                          <p className="text-sm text-muted-foreground">{format(eventDate, "EEE, MMM d 'at' h:mm a")}</p>
+                      <div key={event.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30 gap-2" data-testid={`upcoming-event-${event.id}`}>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm truncate">{event.title}</p>
+                          <p className="text-xs text-muted-foreground">{format(eventDate, "EEE, MMM d • h:mm a")}</p>
                         </div>
-                        <span className={cn(
-                          "text-xs px-2 py-1 rounded-full",
-                          daysToGo === 0 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                          daysToGo <= 3 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                          "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        <Badge variant="secondary" className={cn(
+                          "text-[10px] shrink-0",
+                          daysToGo === 0 && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                          daysToGo === 1 && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                          daysToGo > 1 && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                         )}>
                           {daysLabel}
-                        </span>
+                        </Badge>
                       </div>
                     );
                   })}
@@ -451,15 +442,19 @@ export default function CalendarPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                {format(selectedDate, "EEEE, MMM d")}
+        {/* Right: Selected Day Details */}
+        <div className="space-y-4">
+          <Card className="shadow-lg sticky top-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                {format(selectedDate, "EEE, MMM d")}
               </CardTitle>
+              <CardDescription>
+                {isToday(selectedDate) ? "Today" : isFuture(selectedDate) ? `${differenceInDays(selectedDate, new Date())} days from now` : `${differenceInDays(new Date(), selectedDate)} days ago`}
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-medium">Day Status</p>
