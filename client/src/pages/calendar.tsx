@@ -43,6 +43,9 @@ export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [customLabel, setCustomLabel] = useState("");
   const [eventStartTime, setEventStartTime] = useState("");
+  
+  // Paint mode for day status - select a status, then click days to apply
+  const [paintMode, setPaintMode] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof eventSchema>>({
     resolver: zodResolver(eventSchema),
@@ -65,18 +68,41 @@ export default function CalendarPage() {
   const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
   const selectedDayStatus = dayStatuses?.find(s => s.date === selectedDateKey);
 
-  const handleStatusChange = (status: string) => {
+  const handleStatusChange = (status: string, targetDate?: string) => {
+    const dateToUpdate = targetDate || selectedDateKey;
     if (status === "custom" && !customLabel) {
       return;
     }
     upsertDayStatus({
-      date: selectedDateKey,
+      date: dateToUpdate,
       status,
       customLabel: status === "custom" ? customLabel : undefined,
     });
     if (status !== "custom") {
       setCustomLabel("");
     }
+  };
+  
+  // Handle clicking a day - always select, and apply paint mode if active
+  const handleDayClick = (day: Date) => {
+    const dateStr = format(day, "yyyy-MM-dd");
+    
+    // Always select the day so details panel updates
+    setSelectedDate(day);
+    
+    if (paintMode) {
+      // Also apply the selected status to this day
+      handleStatusChange(paintMode, dateStr);
+    }
+  };
+  
+  // Open event dialog with specific date
+  const openEventDialogForDate = (day: Date) => {
+    setSelectedDate(day);
+    const defaultDateTime = format(day, "yyyy-MM-dd") + "T09:00";
+    setEventStartTime(defaultDateTime);
+    form.reset({ title: "", category: "general", notes: "" });
+    setIsOpen(true);
   };
 
   const eventsOnSelectedDate = events?.filter(e => 
@@ -209,6 +235,58 @@ export default function CalendarPage() {
                 </Button>
               </div>
               
+              {/* Paint Mode Toolbar */}
+              <div className="mb-4 p-3 rounded-lg bg-secondary/30 border">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                  <p className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                    {paintMode ? "Click days to apply:" : "Quick Status:"}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {dayStatusOptions.filter(o => o.value !== "custom").map((option) => {
+                      const Icon = option.icon;
+                      const isActive = paintMode === option.value;
+                      return (
+                        <Button
+                          key={option.value}
+                          variant={isActive ? "default" : "outline"}
+                          size="sm"
+                          className={cn(
+                            "h-8 px-2.5 gap-1.5",
+                            isActive && option.color
+                          )}
+                          onClick={() => setPaintMode(isActive ? null : option.value)}
+                          data-testid={`paint-status-${option.value}`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline text-xs">{option.label}</span>
+                        </Button>
+                      );
+                    })}
+                    {paintMode && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2.5 text-muted-foreground"
+                        onClick={() => setPaintMode(null)}
+                        data-testid="paint-mode-cancel"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {paintMode && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Click on calendar days to set them as "{dayStatusOptions.find(o => o.value === paintMode)?.label}". Double-click any day to add an event.
+                  </p>
+                )}
+                {!paintMode && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Select a status above, then click days to apply. Double-click any day to add an event.
+                  </p>
+                )}
+              </div>
+              
               <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2">
                 {WEEKDAYS.map((day, i) => (
                   <div key={day} className="text-center text-[10px] sm:text-xs font-medium text-muted-foreground py-1 sm:py-2">
@@ -234,13 +312,15 @@ export default function CalendarPage() {
                   return (
                     <button
                       key={day.toISOString()}
-                      onClick={() => setSelectedDate(day)}
+                      onClick={() => handleDayClick(day)}
+                      onDoubleClick={() => openEventDialogForDate(day)}
                       className={cn(
-                        "h-14 sm:h-20 lg:h-28 p-1 sm:p-1.5 rounded-md sm:rounded-lg text-xs transition-all relative flex flex-col items-start border",
+                        "group h-14 sm:h-20 lg:h-28 p-1 sm:p-1.5 rounded-md sm:rounded-lg text-xs transition-all relative flex flex-col items-start border",
                         isTodayDate && "ring-2 ring-primary ring-offset-1",
                         isSelected && "bg-primary/10 border-primary",
                         statusInfo && !isSelected && statusInfo.color,
-                        !isSelected && !statusInfo && "border-transparent hover:border-primary/30 hover:bg-secondary/30"
+                        !isSelected && !statusInfo && "border-transparent hover:border-primary/30 hover:bg-secondary/30",
+                        paintMode && "cursor-crosshair"
                       )}
                       data-testid={`calendar-day-${dateStr}`}
                     >
@@ -249,9 +329,26 @@ export default function CalendarPage() {
                           "font-semibold text-xs sm:text-sm",
                           isTodayDate && "text-primary"
                         )}>{format(day, "d")}</span>
-                        {StatusIcon && (
-                          <StatusIcon className={cn("w-2.5 h-2.5 sm:w-3 sm:h-3", statusInfo.color.split(' ')[0])} />
-                        )}
+                        <div className="flex items-center gap-0.5">
+                          {StatusIcon && (
+                            <StatusIcon className={cn("w-2.5 h-2.5 sm:w-3 sm:h-3", statusInfo.color.split(' ')[0])} />
+                          )}
+                          {!paintMode && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEventDialogForDate(day);
+                              }}
+                              className={cn(
+                                "w-4 h-4 rounded-full bg-primary/80 text-primary-foreground flex items-center justify-center sm:w-5 sm:h-5 transition-opacity",
+                                isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                              )}
+                              data-testid={`add-event-${dateStr}`}
+                            >
+                              <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="hidden sm:block">
