@@ -839,15 +839,39 @@ function FinanceCalendarView() {
     return { income, expense, net: income - expense, transactions: dayTransactions };
   };
   
-  const monthIncome = transactions?.filter(t => {
+  // Calculate actual transactions for the month
+  const actualMonthIncome = transactions?.filter(t => {
     const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
     return isSameMonth(txDate, currentMonth) && t.type === 'income';
   }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
   
-  const monthExpense = transactions?.filter(t => {
+  const actualMonthExpense = transactions?.filter(t => {
     const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
     return isSameMonth(txDate, currentMonth) && t.type === 'expense';
   }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+  
+  // Calculate recurring templates for the month
+  const getRecurringForMonth = () => {
+    let recurringIncome = 0;
+    let recurringExpense = 0;
+    const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    
+    for (const day of daysInMonth) {
+      const recurringForDay = (recurringTemplates || []).filter(r => {
+        const startDate = typeof r.startDate === 'string' ? parseISO(r.startDate) : new Date(r.startDate);
+        return occursOn(r, day, startDate);
+      });
+      
+      recurringIncome += recurringForDay.filter(r => r.type === 'income').reduce((acc, r) => acc + Number(r.amount), 0);
+      recurringExpense += recurringForDay.filter(r => r.type === 'expense').reduce((acc, r) => acc + Number(r.amount), 0);
+    }
+    
+    return { recurringIncome, recurringExpense };
+  };
+  
+  const { recurringIncome, recurringExpense } = getRecurringForMonth();
+  const monthIncome = actualMonthIncome + recurringIncome;
+  const monthExpense = actualMonthExpense + recurringExpense;
   
   const getPayPeriods = () => {
     if (paydayDates.length === 0) return [];
@@ -1098,6 +1122,42 @@ function FinanceCalendarView() {
         </CardContent>
       </Card>
       
+      <div className="flex items-center justify-between mb-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+          data-testid="button-prev-month"
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Prev
+        </Button>
+        <h2 className="text-xl font-bold" data-testid="text-current-month">
+          {format(currentMonth, "MMMM yyyy")}
+        </h2>
+        <div className="flex items-center gap-2">
+          {!isSameMonth(currentMonth, new Date()) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCurrentMonth(new Date())}
+              data-testid="button-today-month"
+            >
+              Today
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+            data-testid="button-next-month"
+          >
+            Next
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </div>
+      </div>
+      
       <div className="grid md:grid-cols-3 gap-6">
         <Card className="bg-gradient-to-br from-green-500 to-emerald-600 text-white border-none shadow-xl">
           <CardContent className="pt-6">
@@ -1105,6 +1165,9 @@ function FinanceCalendarView() {
               <div>
                 <p className="text-white/80 font-medium">Monthly Income</p>
                 <h3 className="text-3xl font-bold mt-2">{privateCurrency(monthIncome, currency)}</h3>
+                {recurringIncome > 0 && (
+                  <p className="text-xs text-white/70 mt-1">Includes {privateCurrency(recurringIncome, currency)} recurring</p>
+                )}
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <TrendingUp className="w-6 h-6 text-white" />
@@ -1119,6 +1182,9 @@ function FinanceCalendarView() {
               <div>
                 <p className="text-white/80 font-medium">Monthly Expenses</p>
                 <h3 className="text-3xl font-bold mt-2">{privateCurrency(monthExpense, currency)}</h3>
+                {recurringExpense > 0 && (
+                  <p className="text-xs text-white/70 mt-1">Includes {privateCurrency(recurringExpense, currency)} recurring</p>
+                )}
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <TrendingDown className="w-6 h-6 text-white" />
