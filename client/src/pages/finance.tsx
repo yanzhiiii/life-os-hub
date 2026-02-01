@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, createContext, useContext, useEffect } from "react";
 import { Shell } from "@/components/layout/Shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTransactionSchema, insertDebtSchema, insertSavingsGoalSchema, insertRecurringTemplateSchema } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { z } from "zod";
-import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3, Repeat } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3, Repeat, Eye, EyeOff } from "lucide-react";
+
+// Privacy context for hiding financial amounts
+const PrivacyContext = createContext<{ hideAmounts: boolean; toggleHide: () => void }>({
+  hideAmounts: true,
+  toggleHide: () => {}
+});
+
+const usePrivacy = () => useContext(PrivacyContext);
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, parseISO, setDate, isAfter, isBefore, differenceInDays, addDays } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer as ReBarContainer, Tooltip as ReBarTooltip, Legend } from "recharts";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip } from "recharts";
@@ -69,11 +77,36 @@ const savingsSchema = z.object({
 });
 
 export default function Finance() {
+  // Privacy mode - hide amounts by default, persist to localStorage
+  const [hideAmounts, setHideAmounts] = useState(() => {
+    const saved = localStorage.getItem('finance-privacy');
+    return saved !== null ? JSON.parse(saved) : true; // Default to hidden
+  });
+  
+  useEffect(() => {
+    localStorage.setItem('finance-privacy', JSON.stringify(hideAmounts));
+  }, [hideAmounts]);
+  
+  const toggleHide = () => setHideAmounts(!hideAmounts);
+  
   return (
+    <PrivacyContext.Provider value={{ hideAmounts, toggleHide }}>
     <Shell>
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-display font-bold">Financial Overview</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">Track income, expenses, debts, and savings goals.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold">Financial Overview</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Track income, expenses, debts, and savings goals.</p>
+        </div>
+        <Button 
+          variant={hideAmounts ? "outline" : "secondary"} 
+          size="sm"
+          onClick={toggleHide}
+          className="gap-2 self-start sm:self-auto"
+          data-testid="button-toggle-privacy"
+        >
+          {hideAmounts ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          {hideAmounts ? "Show Amounts" : "Hide Amounts"}
+        </Button>
       </div>
 
       <Tabs defaultValue="transactions" className="space-y-6">
@@ -109,6 +142,7 @@ export default function Finance() {
         </TabsContent>
       </Tabs>
     </Shell>
+    </PrivacyContext.Provider>
   );
 }
 
@@ -118,6 +152,7 @@ function TransactionsView() {
   const { mutate: createTransaction } = useCreateTransaction();
   const [isOpen, setIsOpen] = useState(false);
   const currency = user?.currency || "PHP";
+  const privateCurrency = usePrivateCurrency();
 
   const form = useForm<z.infer<typeof transactionSchema>>({
     resolver: zodResolver(transactionSchema),
@@ -197,7 +232,7 @@ function TransactionsView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Total Income</p>
-                <h3 className="text-3xl font-bold mt-2">{formatCurrency(income, currency)}</h3>
+                <h3 className="text-3xl font-bold mt-2">{privateCurrency(income, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <TrendingUp className="w-6 h-6 text-white" />
@@ -211,7 +246,7 @@ function TransactionsView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Total Expenses</p>
-                <h3 className="text-3xl font-bold mt-2">{formatCurrency(expense, currency)}</h3>
+                <h3 className="text-3xl font-bold mt-2">{privateCurrency(expense, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <TrendingDown className="w-6 h-6 text-white" />
@@ -225,7 +260,7 @@ function TransactionsView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Net Balance</p>
-                <h3 className="text-3xl font-bold mt-2">{formatCurrency(income - expense, currency)}</h3>
+                <h3 className="text-3xl font-bold mt-2">{privateCurrency(income - expense, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <Wallet className="w-6 h-6 text-white" />
@@ -255,7 +290,7 @@ function TransactionsView() {
                       </div>
                     </div>
                     <span className={`font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                      {t.type === 'income' ? '+' : '-'}{formatCurrency(Number(t.amount), currency)}
+                      {t.type === 'income' ? '+' : '-'}{privateCurrency(Number(t.amount), currency)}
                     </span>
                   </div>
                 ))}
@@ -330,6 +365,7 @@ function DebtsView() {
   const { mutate: deleteDebt } = useDeleteDebt();
   const [isOpen, setIsOpen] = useState(false);
   const currency = user?.currency || "PHP";
+  const privateCurrency = usePrivateCurrency();
 
   const form = useForm<z.infer<typeof debtSchema>>({
     resolver: zodResolver(debtSchema),
@@ -365,15 +401,15 @@ function DebtsView() {
         <div className="flex gap-8">
           <div>
             <p className="text-sm text-muted-foreground">Total Debt</p>
-            <p className="text-2xl font-bold">{formatCurrency(totalDebt, currency)}</p>
+            <p className="text-2xl font-bold">{privateCurrency(totalDebt, currency)}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Paid Off</p>
-            <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid, currency)}</p>
+            <p className="text-2xl font-bold text-green-600">{privateCurrency(totalPaid, currency)}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Remaining</p>
-            <p className="text-2xl font-bold text-red-600">{formatCurrency(totalRemaining, currency)}</p>
+            <p className="text-2xl font-bold text-red-600">{privateCurrency(totalRemaining, currency)}</p>
           </div>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -464,11 +500,11 @@ function DebtsView() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total</span>
-                    <span className="font-medium">{formatCurrency(Number(debt.totalAmount), currency)}</span>
+                    <span className="font-medium">{privateCurrency(Number(debt.totalAmount), currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Remaining</span>
-                    <span className="font-medium text-red-600">{formatCurrency(Number(debt.remainingAmount), currency)}</span>
+                    <span className="font-medium text-red-600">{privateCurrency(Number(debt.remainingAmount), currency)}</span>
                   </div>
                   {debt.dueDate && (
                     <div className="flex justify-between">
@@ -499,6 +535,7 @@ function SavingsView() {
   const { mutate: deleteSavings } = useDeleteSavingsGoal();
   const [isOpen, setIsOpen] = useState(false);
   const currency = user?.currency || "PHP";
+  const privateCurrency = usePrivateCurrency();
 
   const form = useForm<z.infer<typeof savingsSchema>>({
     resolver: zodResolver(savingsSchema),
@@ -531,11 +568,11 @@ function SavingsView() {
         <div className="flex gap-8">
           <div>
             <p className="text-sm text-muted-foreground">Total Goals</p>
-            <p className="text-2xl font-bold">{formatCurrency(totalTarget, currency)}</p>
+            <p className="text-2xl font-bold">{privateCurrency(totalTarget, currency)}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Total Saved</p>
-            <p className="text-2xl font-bold text-green-600">{formatCurrency(totalSaved, currency)}</p>
+            <p className="text-2xl font-bold text-green-600">{privateCurrency(totalSaved, currency)}</p>
           </div>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -606,8 +643,8 @@ function SavingsView() {
                 </div>
                 <div className="space-y-2 text-sm text-center">
                   <div>
-                    <span className="text-2xl font-bold">{formatCurrency(Number(goal.currentAmount || 0), currency)}</span>
-                    <span className="text-muted-foreground"> / {formatCurrency(Number(goal.targetAmount), currency)}</span>
+                    <span className="text-2xl font-bold">{privateCurrency(Number(goal.currentAmount || 0), currency)}</span>
+                    <span className="text-muted-foreground"> / {privateCurrency(Number(goal.targetAmount), currency)}</span>
                   </div>
                   <Progress value={progress} className="h-2" />
                 </div>
@@ -635,6 +672,26 @@ const formatCurrency = (amount: number, currency: string = "PHP") => {
   }).format(amount);
 };
 
+// Privacy-aware currency formatter - shows asterisks when hidden
+const maskCurrency = (amount: number, currency: string = "PHP", hide: boolean = false) => {
+  if (hide) {
+    const currencySymbol = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(0).replace(/[\d,.\s]/g, '').trim();
+    return `${currencySymbol}****`;
+  }
+  return formatCurrency(amount, currency);
+};
+
+const usePrivateCurrency = () => {
+  const { hideAmounts } = usePrivacy();
+  
+  return (amount: number, currency: string = "PHP") => {
+    return maskCurrency(amount, currency, hideAmounts);
+  };
+};
+
 const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Rent', 'Utilities', 'Internet', 'Laundry', 'Entertainment', 'Shopping', 'Health', 'Other'];
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -650,6 +707,8 @@ function FinanceCalendarView() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showRecurringDialog, setShowRecurringDialog] = useState(false);
   const [showTransactionDialog, setShowTransactionDialog] = useState(false);
+  const privateCurrency = usePrivateCurrency();
+  const { hideAmounts } = usePrivacy();
   
   const transactionForm = useForm<z.infer<typeof transactionSchema>>({
     resolver: zodResolver(transactionSchema),
@@ -1025,14 +1084,14 @@ function FinanceCalendarView() {
               <Wallet className="w-5 h-5 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Current Balance:</span>
               <span className={cn("text-xl font-bold", currentBalance >= 0 ? "text-green-600" : "text-red-600")} data-testid="text-current-balance">
-                {formatCurrency(currentBalance, currency)}
+                {privateCurrency(currentBalance, currency)}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Projected End of Month:</span>
               <span className={cn("text-xl font-bold", projectedEndBalance >= 0 ? "text-green-600" : "text-red-600")} data-testid="text-projected-balance">
-                {formatCurrency(projectedEndBalance, currency)}
+                {privateCurrency(projectedEndBalance, currency)}
               </span>
             </div>
           </div>
@@ -1045,7 +1104,7 @@ function FinanceCalendarView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Monthly Income</p>
-                <h3 className="text-3xl font-bold mt-2">{formatCurrency(monthIncome, currency)}</h3>
+                <h3 className="text-3xl font-bold mt-2">{privateCurrency(monthIncome, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <TrendingUp className="w-6 h-6 text-white" />
@@ -1059,7 +1118,7 @@ function FinanceCalendarView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Monthly Expenses</p>
-                <h3 className="text-3xl font-bold mt-2">{formatCurrency(monthExpense, currency)}</h3>
+                <h3 className="text-3xl font-bold mt-2">{privateCurrency(monthExpense, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <TrendingDown className="w-6 h-6 text-white" />
@@ -1073,7 +1132,7 @@ function FinanceCalendarView() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-white/80 font-medium">Net Balance</p>
-                <h3 className="text-3xl font-bold mt-2">{formatCurrency(monthIncome - monthExpense, currency)}</h3>
+                <h3 className="text-3xl font-bold mt-2">{privateCurrency(monthIncome - monthExpense, currency)}</h3>
               </div>
               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
                 <Wallet className="w-6 h-6 text-white" />
@@ -1112,13 +1171,13 @@ function FinanceCalendarView() {
               </div>
               <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-xl">
                 <p className="text-xs text-muted-foreground mb-1">Spent This Period</p>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(currentPeriod.spent, currency)}</p>
+                <p className="text-2xl font-bold text-red-600">{privateCurrency(currentPeriod.spent, currency)}</p>
                 <p className="text-xs text-muted-foreground">total expenses</p>
               </div>
               <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                 <p className="text-xs text-muted-foreground mb-1">Daily Average</p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(currentPeriod.daysPassed > 0 ? currentPeriod.spent / currentPeriod.daysPassed : 0, currency)}
+                  {privateCurrency(currentPeriod.daysPassed > 0 ? currentPeriod.spent / currentPeriod.daysPassed : 0, currency)}
                 </p>
                 <p className="text-xs text-muted-foreground">per day</p>
               </div>
@@ -1159,7 +1218,7 @@ function FinanceCalendarView() {
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <ReBarTooltip 
-                  formatter={(value: number) => formatCurrency(value, currency)}
+                  formatter={(value: number) => maskCurrency(value, currency, hideAmounts)}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
                 <Legend />
@@ -1192,11 +1251,11 @@ function FinanceCalendarView() {
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
                         <p className="text-[10px] text-muted-foreground">Income</p>
-                        <p className="text-sm font-bold text-green-600">{formatCurrency(period.income, currency)}</p>
+                        <p className="text-sm font-bold text-green-600">{privateCurrency(period.income, currency)}</p>
                       </div>
                       <div className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20">
                         <p className="text-[10px] text-muted-foreground">Expenses</p>
-                        <p className="text-sm font-bold text-red-600">{formatCurrency(period.expense, currency)}</p>
+                        <p className="text-sm font-bold text-red-600">{privateCurrency(period.expense, currency)}</p>
                       </div>
                       <div className={cn(
                         "p-2 rounded-lg",
@@ -1206,7 +1265,7 @@ function FinanceCalendarView() {
                         <p className={cn(
                           "text-sm font-bold",
                           period.net >= 0 ? "text-blue-600" : "text-orange-600"
-                        )}>{formatCurrency(period.net, currency)}</p>
+                        )}>{privateCurrency(period.net, currency)}</p>
                       </div>
                     </div>
                     
@@ -1228,7 +1287,7 @@ function FinanceCalendarView() {
                               ))}
                             </Pie>
                             <ReTooltip
-                              formatter={(value: number) => formatCurrency(value, currency)}
+                              formatter={(value: number) => maskCurrency(value, currency, hideAmounts)}
                               contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
                             />
                           </PieChart>
@@ -1690,11 +1749,11 @@ function FinanceCalendarView() {
                       <div className="grid grid-cols-2 gap-3 pb-3 border-b">
                         <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
                           <p className="text-[10px] text-muted-foreground">Income</p>
-                          <p className="text-sm font-bold text-green-600">{formatCurrency(getDaySummary(selectedDate).income, currency)}</p>
+                          <p className="text-sm font-bold text-green-600">{privateCurrency(getDaySummary(selectedDate).income, currency)}</p>
                         </div>
                         <div className="text-center p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
                           <p className="text-[10px] text-muted-foreground">Expenses</p>
-                          <p className="text-sm font-bold text-red-600">{formatCurrency(getDaySummary(selectedDate).expense, currency)}</p>
+                          <p className="text-sm font-bold text-red-600">{privateCurrency(getDaySummary(selectedDate).expense, currency)}</p>
                         </div>
                       </div>
                       
@@ -1726,7 +1785,7 @@ function FinanceCalendarView() {
                                 "text-xl font-bold",
                                 selectedProjectedBalance >= 0 ? "text-green-600" : "text-red-600"
                               )}>
-                                {formatCurrency(selectedProjectedBalance, currency)}
+                                {privateCurrency(selectedProjectedBalance, currency)}
                               </p>
                             </div>
                             
@@ -1748,7 +1807,7 @@ function FinanceCalendarView() {
                                       "font-bold text-xs flex-shrink-0",
                                       r.type === 'income' ? "text-green-600" : "text-red-600"
                                     )}>
-                                      {r.type === 'income' ? '+' : '-'}{formatCurrency(Number(r.amount), currency)}
+                                      {r.type === 'income' ? '+' : '-'}{privateCurrency(Number(r.amount), currency)}
                                     </span>
                                   </div>
                                 ))}
@@ -1779,7 +1838,7 @@ function FinanceCalendarView() {
                                 "font-bold text-xs flex-shrink-0",
                                 t.type === 'income' ? "text-green-600" : "text-red-600"
                               )}>
-                                {t.type === 'income' ? '+' : '-'}{formatCurrency(Number(t.amount), currency)}
+                                {t.type === 'income' ? '+' : '-'}{privateCurrency(Number(t.amount), currency)}
                               </span>
                             </div>
                           ))}
@@ -1822,7 +1881,7 @@ function FinanceCalendarView() {
                               "font-bold text-xs",
                               r.type === 'income' ? "text-green-600" : "text-red-600"
                             )}>
-                              {formatCurrency(Number(r.amount), currency)}
+                              {privateCurrency(Number(r.amount), currency)}
                             </span>
                             <Button 
                               variant="ghost" 
