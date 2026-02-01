@@ -1,6 +1,7 @@
 import { Shell } from "@/components/layout/Shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/use-auth";
 import { useTasks, useUpdateTask } from "@/hooks/use-tasks";
 import { useRoutines, useRoutineCompletions, useLogRoutineCompletion } from "@/hooks/use-routines";
@@ -10,9 +11,18 @@ import { useEvents } from "@/hooks/use-events";
 import { useDayStatuses } from "@/hooks/use-day-statuses";
 import { useJournalEntries } from "@/hooks/use-journal";
 import { format, differenceInDays, addMonths, setDate, isBefore, startOfDay, isToday, isFuture, parseISO } from "date-fns";
-import { ArrowUpRight, ArrowDownRight, Briefcase, Coffee, Stethoscope, Palmtree, Clock, CalendarDays, Wallet, Target, BookOpen, TrendingUp, CheckCircle2, Circle } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Briefcase, Coffee, Stethoscope, Palmtree, Clock, CalendarDays, Wallet, Target, BookOpen, TrendingUp, CheckCircle2, Circle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { useState, useEffect, createContext, useContext } from "react";
+
+// Privacy context for hiding amounts
+const PrivacyContext = createContext<{ hideAmounts: boolean; togglePrivacy: () => void }>({ 
+  hideAmounts: true, 
+  togglePrivacy: () => {} 
+});
+
+const usePrivacy = () => useContext(PrivacyContext);
 
 const formatCurrency = (amount: number, currency: string = "PHP") => {
   return new Intl.NumberFormat('en-US', {
@@ -21,6 +31,17 @@ const formatCurrency = (amount: number, currency: string = "PHP") => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+};
+
+const maskCurrency = (amount: number, currency: string = "PHP", hide: boolean = false) => {
+  if (hide) {
+    const currencySymbol = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(0).replace(/[\d,.\s]/g, '').trim();
+    return `${currencySymbol}****`;
+  }
+  return formatCurrency(amount, currency);
 };
 
 const getNextPayday = (paydayConfig: { type: string; dates?: number[] } | null | undefined) => {
@@ -66,6 +87,29 @@ export default function Dashboard() {
   const { data: journalEntries } = useJournalEntries();
   const { mutate: updateTask } = useUpdateTask();
   const { mutate: logRoutineCompletion } = useLogRoutineCompletion();
+  
+  // Privacy state
+  const [hideAmounts, setHideAmounts] = useState(() => {
+    const saved = localStorage.getItem('dashboard-privacy');
+    return saved === null ? true : JSON.parse(saved);
+  });
+  
+  const togglePrivacy = () => {
+    setHideAmounts((prev: boolean) => {
+      localStorage.setItem('dashboard-privacy', JSON.stringify(!prev));
+      return !prev;
+    });
+  };
+  
+  // Live clock
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
   
   const today = format(new Date(), "yyyy-MM-dd");
   const { data: todayCompletions } = useRoutineCompletions(today);
@@ -136,7 +180,23 @@ export default function Dashboard() {
             </h1>
             <p className="text-sm sm:text-base text-muted-foreground mt-1">{format(new Date(), "EEEE, MMMM do, yyyy")}</p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+            <div className="px-3 sm:px-4 py-2 rounded-xl shadow-sm border bg-gradient-to-br from-card to-secondary/30 flex items-center gap-2" data-testid="card-clock">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              <div className="text-lg sm:text-xl font-mono font-bold" data-testid="text-time">
+                {format(currentTime, "h:mm:ss a")}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={togglePrivacy}
+              className="gap-2"
+              data-testid="button-toggle-privacy"
+            >
+              {hideAmounts ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              <span className="hidden sm:inline">{hideAmounts ? "Show" : "Hide"}</span>
+            </Button>
             <div className={cn(
               "px-3 sm:px-4 py-2 rounded-xl shadow-sm border flex items-center gap-2",
               statusInfo.bg
@@ -161,7 +221,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(balance, currency)}</div>
+              <div className="text-2xl font-bold">{maskCurrency(balance, currency, hideAmounts)}</div>
               <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                 {balance >= 0 ? (
                   <><ArrowUpRight className="text-green-500 w-3 h-3"/> Healthy</>
@@ -324,16 +384,16 @@ export default function Dashboard() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
                     <p className="text-sm text-muted-foreground">Income</p>
-                    <p className="text-xl font-bold text-green-600">{formatCurrency(totalIncome, currency)}</p>
+                    <p className="text-xl font-bold text-green-600">{maskCurrency(totalIncome, currency, hideAmounts)}</p>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
                     <p className="text-sm text-muted-foreground">Expenses</p>
-                    <p className="text-xl font-bold text-red-600">{formatCurrency(totalExpense, currency)}</p>
+                    <p className="text-xl font-bold text-red-600">{maskCurrency(totalExpense, currency, hideAmounts)}</p>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
                     <p className="text-sm text-muted-foreground">Balance</p>
                     <p className={cn("text-xl font-bold", balance >= 0 ? "text-blue-600" : "text-red-600")}>
-                      {formatCurrency(balance, currency)}
+                      {maskCurrency(balance, currency, hideAmounts)}
                     </p>
                   </div>
                 </div>
