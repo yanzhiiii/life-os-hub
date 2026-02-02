@@ -6,11 +6,12 @@ import { useUser } from "@/hooks/use-auth";
 import { useTasks, useUpdateTask } from "@/hooks/use-tasks";
 import { useRoutines, useRoutineCompletions, useLogRoutineCompletion } from "@/hooks/use-routines";
 import { useTransactions } from "@/hooks/use-finance";
+import { useRecurringTemplates } from "@/hooks/use-recurring-templates";
 import { useGoals } from "@/hooks/use-goals";
 import { useEvents } from "@/hooks/use-events";
 import { useDayStatuses } from "@/hooks/use-day-statuses";
 import { useJournalEntries } from "@/hooks/use-journal";
-import { format, differenceInDays, addMonths, setDate, isBefore, startOfDay, isToday, isFuture, parseISO } from "date-fns";
+import { format, differenceInDays, addMonths, setDate, isBefore, startOfDay, isToday, isFuture, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from "date-fns";
 import { ArrowUpRight, ArrowDownRight, Briefcase, Coffee, Stethoscope, Palmtree, Clock, CalendarDays, Wallet, Target, BookOpen, TrendingUp, CheckCircle2, Circle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -42,6 +43,49 @@ const maskCurrency = (amount: number, currency: string = "PHP", hide: boolean = 
     return `${currencySymbol}****`;
   }
   return formatCurrency(amount, currency);
+};
+
+const occursOn = (template: any, day: Date, startDate: Date): boolean => {
+  if (isBefore(day, startDate)) return false;
+  
+  const freq = template.frequency;
+  const d = day;
+  const s = startDate;
+  const dayOfWeek = d.getDay();
+  const dayNum = d.getDate();
+  const lastDayOfMonth = endOfMonth(d).getDate();
+  
+  switch (freq) {
+    case 'once':
+      return format(d, 'yyyy-MM-dd') === format(s, 'yyyy-MM-dd');
+    case 'daily':
+      return true;
+    case 'weekly':
+      return dayOfWeek === s.getDay();
+    case 'biweekly': {
+      const diffWeeks = Math.floor((d.getTime() - s.getTime()) / (7 * 86400000));
+      return dayOfWeek === s.getDay() && diffWeeks % 2 === 0;
+    }
+    case 'semimonthly_1_15':
+      return dayNum === 1 || dayNum === 15;
+    case 'semimonthly_5_20':
+      return dayNum === 5 || dayNum === 20;
+    case 'semimonthly_15_eom': {
+      const isEndOfMonth = dayNum === lastDayOfMonth;
+      return dayNum === 15 || isEndOfMonth;
+    }
+    case 'monthly': {
+      const targetDay = template.dayOfMonth || s.getDate();
+      return dayNum === Math.min(targetDay, lastDayOfMonth);
+    }
+    case 'everyN': {
+      const n = template.everyNDays || 2;
+      const diffDays = Math.floor((d.getTime() - s.getTime()) / 86400000);
+      return diffDays % n === 0;
+    }
+    default:
+      return false;
+  }
 };
 
 const getNextPayday = (paydayConfig: { type: string; dates?: number[] } | null | undefined) => {
@@ -80,6 +124,7 @@ export default function Dashboard() {
   const { data: user } = useUser();
   const { data: tasks } = useTasks();
   const { data: transactions } = useTransactions();
+  const { data: recurringTemplates } = useRecurringTemplates();
   const { data: routines } = useRoutines();
   const { data: goals } = useGoals();
   const { data: events } = useEvents();
@@ -124,8 +169,37 @@ export default function Dashboard() {
   const completedTasks = tasks?.filter(t => t.status === "done").length || 0;
   const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   
-  const totalIncome = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
-  const totalExpense = transactions?.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+  // Calculate current month's income/expense including recurring
+  const currentMonth = new Date();
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  
+  // Actual transactions for this month
+  const actualMonthIncome = transactions?.filter(t => {
+    const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+    return isSameMonth(txDate, currentMonth) && t.type === 'income';
+  }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+  
+  const actualMonthExpense = transactions?.filter(t => {
+    const txDate = typeof t.date === 'string' ? parseISO(t.date) : new Date(t.date);
+    return isSameMonth(txDate, currentMonth) && t.type === 'expense';
+  }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+  
+  // Recurring templates for this month
+  let recurringIncome = 0;
+  let recurringExpense = 0;
+  for (const day of daysInMonth) {
+    const recurringForDay = (recurringTemplates || []).filter(r => {
+      const startDate = typeof r.startDate === 'string' ? parseISO(r.startDate) : new Date(r.startDate);
+      return occursOn(r, day, startDate);
+    });
+    recurringIncome += recurringForDay.filter(r => r.type === 'income').reduce((acc, r) => acc + Number(r.amount), 0);
+    recurringExpense += recurringForDay.filter(r => r.type === 'expense').reduce((acc, r) => acc + Number(r.amount), 0);
+  }
+  
+  const totalIncome = actualMonthIncome + recurringIncome;
+  const totalExpense = actualMonthExpense + recurringExpense;
   const balance = totalIncome - totalExpense;
 
   const nextPayday = getNextPayday(user?.paydayConfig);
