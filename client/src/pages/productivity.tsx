@@ -10,13 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useTasks, useCreateTask, useDeleteTask, useUpdateTask } from "@/hooks/use-tasks";
-import { useRoutines, useCreateRoutine, useDeleteRoutine, useRoutineCompletions, useLogRoutineCompletion } from "@/hooks/use-routines";
+import { useRoutines, useCreateRoutine, useUpdateRoutine, useDeleteRoutine, useRoutineCompletions, useLogRoutineCompletion } from "@/hooks/use-routines";
 import { useGoals, useCreateGoal, useUpdateGoal, useDeleteGoal } from "@/hooks/use-goals";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTaskSchema, insertRoutineSchema, insertGoalSchema } from "@shared/schema";
 import { z } from "zod";
-import { CheckCircle2, Circle, Plus, Trash2, CalendarIcon, Target, Flame, CheckSquare, Timer, Play, Pause, RotateCcw, Coffee, Brain, Settings } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2, Pencil, CalendarIcon, Target, Flame, CheckSquare, Timer, Play, Pause, RotateCcw, Coffee, Brain, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -89,6 +89,7 @@ function TaskList() {
   const { mutate: updateTask } = useUpdateTask();
   const { mutate: deleteTask } = useDeleteTask();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<{ id: number; title: string; priority?: string | null; status?: string | null; dueDate?: Date | string | null } | null>(null);
 
   const form = useForm<z.infer<typeof taskSchema>>({
     resolver: zodResolver(taskSchema),
@@ -100,12 +101,33 @@ function TaskList() {
       ...data,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
     };
-    createTask(taskData, {
-      onSuccess: () => {
-        setIsOpen(false);
-        form.reset();
-      }
+    if (editingTask) {
+      updateTask({ id: editingTask.id, ...taskData }, {
+        onSuccess: () => {
+          setIsOpen(false);
+          setEditingTask(null);
+          form.reset({ title: "", priority: "medium", status: "todo" });
+        }
+      });
+    } else {
+      createTask(taskData, {
+        onSuccess: () => {
+          setIsOpen(false);
+          form.reset();
+        }
+      });
+    }
+  };
+
+  const openEditTask = (task: { id: number; title: string; priority?: string | null; status?: string | null; dueDate?: Date | string | null }) => {
+    setEditingTask(task);
+    form.reset({
+      title: task.title,
+      priority: (task.priority || "medium") as "low" | "medium" | "high",
+      status: (task.status || "todo") as "todo" | "in_progress" | "done",
+      dueDate: task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : ""
     });
+    setIsOpen(true);
   };
 
   const toggleStatus = (task: any) => {
@@ -123,20 +145,20 @@ function TaskList() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) setEditingTask(null); setIsOpen(open); }}>
           <DialogTrigger asChild>
-            <Button className="rounded-xl px-6 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25" data-testid="button-new-task">
+            <Button className="rounded-xl px-6 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25" onClick={() => setEditingTask(null)} data-testid="button-new-task">
               <Plus className="w-4 h-4 mr-2" /> New Task
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Task</DialogTitle>
+              <DialogTitle>{editingTask ? "Edit Task" : "Create New Task"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
               <Input placeholder="What needs to be done?" {...form.register("title")} data-testid="input-task-title" autoComplete="off" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Select onValueChange={(v) => form.setValue("priority", v as any)} defaultValue="medium">
+                <Select onValueChange={(v) => form.setValue("priority", v as any)} value={form.watch("priority")}>
                   <SelectTrigger data-testid="select-task-priority">
                     <SelectValue placeholder="Priority" />
                   </SelectTrigger>
@@ -154,7 +176,7 @@ function TaskList() {
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
                 <Button variant="outline" type="button" onClick={() => setIsOpen(false)}>Cancel</Button>
                 <Button type="submit" data-testid="button-save-task">
-                  Create Task
+                  {editingTask ? "Update Task" : "Create Task"}
                 </Button>
               </div>
             </form>
@@ -198,15 +220,14 @@ function TaskList() {
               </div>
             </div>
 
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-              onClick={() => deleteTask(task.id)}
-              data-testid={`button-delete-task-${task.id}`}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => openEditTask(task)} data-testid={`button-edit-task-${task.id}`}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => deleteTask(task.id)} data-testid={`button-delete-task-${task.id}`}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         ))}
 
@@ -223,11 +244,13 @@ function TaskList() {
 function RoutineList() {
   const { data: routines, isLoading } = useRoutines();
   const { mutate: createRoutine } = useCreateRoutine();
+  const { mutate: updateRoutine } = useUpdateRoutine();
   const { mutate: deleteRoutine } = useDeleteRoutine();
   const { mutate: logCompletion } = useLogRoutineCompletion();
   const today = format(new Date(), "yyyy-MM-dd");
   const { data: completions } = useRoutineCompletions(today);
   const [isOpen, setIsOpen] = useState(false);
+  const [editingRoutine, setEditingRoutine] = useState<{ id: number; title: string; steps: string[]; frequency?: string | null } | null>(null);
 
   const form = useForm<z.infer<typeof routineSchema>>({
     resolver: zodResolver(routineSchema),
@@ -236,12 +259,28 @@ function RoutineList() {
 
   const onSubmit = (data: z.infer<typeof routineSchema>) => {
     const steps = data.steps.split("\n").filter(s => s.trim());
-    createRoutine({ title: data.title, steps, frequency: data.frequency }, {
-      onSuccess: () => {
-        setIsOpen(false);
-        form.reset();
-      }
-    });
+    if (editingRoutine) {
+      updateRoutine({ id: editingRoutine.id, title: data.title, steps, frequency: data.frequency }, {
+        onSuccess: () => {
+          setIsOpen(false);
+          setEditingRoutine(null);
+          form.reset({ title: "", steps: "", frequency: "daily" });
+        }
+      });
+    } else {
+      createRoutine({ title: data.title, steps, frequency: data.frequency }, {
+        onSuccess: () => {
+          setIsOpen(false);
+          form.reset();
+        }
+      });
+    }
+  };
+
+  const openEditRoutine = (routine: { id: number; title: string; steps: string[]; frequency?: string | null }) => {
+    setEditingRoutine(routine);
+    form.reset({ title: routine.title, steps: routine.steps.join("\n"), frequency: routine.frequency || "daily" });
+    setIsOpen(true);
   };
 
   const getCompletionForRoutine = (routineId: number) => {
@@ -268,15 +307,15 @@ function RoutineList() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) setEditingRoutine(null); setIsOpen(open); }}>
           <DialogTrigger asChild>
-            <Button className="rounded-xl px-6 bg-primary shadow-lg shadow-primary/25" data-testid="button-new-routine">
+            <Button className="rounded-xl px-6 bg-primary shadow-lg shadow-primary/25" onClick={() => setEditingRoutine(null)} data-testid="button-new-routine">
               <Plus className="w-4 h-4 mr-2" /> New Routine
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Routine</DialogTitle>
+              <DialogTitle>{editingRoutine ? "Edit Routine" : "Create New Routine"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
               <Input placeholder="Routine name (e.g., Morning Routine)" {...form.register("title")} data-testid="input-routine-title" />
@@ -286,7 +325,7 @@ function RoutineList() {
                 {...form.register("steps")} 
                 data-testid="textarea-routine-steps"
               />
-              <Select onValueChange={(v) => form.setValue("frequency", v)} defaultValue="daily">
+              <Select onValueChange={(v) => form.setValue("frequency", v)} value={form.watch("frequency")}>
                 <SelectTrigger data-testid="select-routine-frequency">
                   <SelectValue placeholder="Frequency" />
                 </SelectTrigger>
@@ -296,7 +335,7 @@ function RoutineList() {
                   <SelectItem value="weekdays">Weekdays</SelectItem>
                 </SelectContent>
               </Select>
-              <Button type="submit" className="w-full" data-testid="button-save-routine">Create Routine</Button>
+              <Button type="submit" className="w-full" data-testid="button-save-routine">{editingRoutine ? "Update Routine" : "Create Routine"}</Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -331,13 +370,10 @@ function RoutineList() {
                     <span className="text-sm font-medium text-muted-foreground">
                       {completedCount}/{routine.steps.length}
                     </span>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteRoutine(routine.id)}
-                      data-testid={`button-delete-routine-${routine.id}`}
-                    >
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => openEditRoutine(routine)} data-testid={`button-edit-routine-${routine.id}`}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => deleteRoutine(routine.id)} data-testid={`button-delete-routine-${routine.id}`}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -394,6 +430,7 @@ function GoalList() {
   const { mutate: updateGoal } = useUpdateGoal();
   const { mutate: deleteGoal } = useDeleteGoal();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<{ id: number; title: string; targetDate?: Date | string | null; milestones?: { id: string; text: string; completed: boolean }[] } | null>(null);
 
   const form = useForm<z.infer<typeof goalSchema>>({
     resolver: zodResolver(goalSchema),
@@ -402,22 +439,47 @@ function GoalList() {
 
   const onSubmit = (data: z.infer<typeof goalSchema>) => {
     const milestones = data.milestones?.split("\n").filter(s => s.trim()).map((text, i) => ({
-      id: `m${i}`,
+      id: editingGoal?.milestones?.[i]?.id ?? `m${i}`,
       text,
-      completed: false
+      completed: editingGoal?.milestones?.[i]?.completed ?? false
     })) || [];
     
-    createGoal({ 
-      title: data.title, 
-      targetDate: data.targetDate ? new Date(data.targetDate) : null,
-      milestones,
-      completed: false
-    }, {
-      onSuccess: () => {
-        setIsOpen(false);
-        form.reset();
-      }
+    if (editingGoal) {
+      updateGoal({ 
+        id: editingGoal.id,
+        title: data.title, 
+        targetDate: data.targetDate ? new Date(data.targetDate) : null,
+        milestones,
+      }, {
+        onSuccess: () => {
+          setIsOpen(false);
+          setEditingGoal(null);
+          form.reset({ title: "", targetDate: "", milestones: "" });
+        }
+      });
+    } else {
+      createGoal({ 
+        title: data.title, 
+        targetDate: data.targetDate ? new Date(data.targetDate) : null,
+        milestones: milestones.map(m => ({ ...m, completed: false })),
+        completed: false
+      }, {
+        onSuccess: () => {
+          setIsOpen(false);
+          form.reset();
+        }
+      });
+    }
+  };
+
+  const openEditGoal = (goal: { id: number; title: string; targetDate?: Date | string | null; milestones?: { id: string; text: string; completed: boolean }[] }) => {
+    setEditingGoal(goal);
+    form.reset({
+      title: goal.title,
+      targetDate: goal.targetDate ? format(new Date(goal.targetDate), "yyyy-MM-dd") : "",
+      milestones: goal.milestones?.map(m => m.text).join("\n") || ""
     });
+    setIsOpen(true);
   };
 
   const toggleMilestone = (goal: any, milestoneId: string) => {
@@ -432,15 +494,15 @@ function GoalList() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) setEditingGoal(null); setIsOpen(open); }}>
           <DialogTrigger asChild>
-            <Button className="rounded-xl px-6 bg-primary shadow-lg shadow-primary/25" data-testid="button-new-goal">
+            <Button className="rounded-xl px-6 bg-primary shadow-lg shadow-primary/25" onClick={() => setEditingGoal(null)} data-testid="button-new-goal">
               <Plus className="w-4 h-4 mr-2" /> New Goal
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Goal</DialogTitle>
+              <DialogTitle>{editingGoal ? "Edit Goal" : "Create New Goal"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
               <Input placeholder="Goal title (e.g., Save $10,000)" {...form.register("title")} data-testid="input-goal-title" />
@@ -457,7 +519,7 @@ function GoalList() {
                   data-testid="textarea-goal-milestones"
                 />
               </div>
-              <Button type="submit" className="w-full" data-testid="button-save-goal">Create Goal</Button>
+              <Button type="submit" className="w-full" data-testid="button-save-goal">{editingGoal ? "Update Goal" : "Create Goal"}</Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -499,13 +561,10 @@ function GoalList() {
                     <span className="text-sm font-medium">
                       {completedMilestones}/{totalMilestones}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteGoal(goal.id)}
-                      data-testid={`button-delete-goal-${goal.id}`}
-                    >
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => openEditGoal(goal)} data-testid={`button-edit-goal-${goal.id}`}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => deleteGoal(goal.id)} data-testid={`button-delete-goal-${goal.id}`}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>

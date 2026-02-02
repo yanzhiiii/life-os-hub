@@ -39,6 +39,10 @@ const insertTransactionSchemaCoerced = insertTransactionSchema.extend({
   date: z.coerce.date(),
 });
 
+const updateTransactionSchema = insertTransactionSchema.partial().extend({
+  date: z.coerce.date().optional(),
+});
+
 const insertDebtSchemaCoerced = insertDebtSchema.extend({
   dueDate: z.coerce.date(),
 });
@@ -259,6 +263,7 @@ export const api = {
     list: {
       method: 'GET' as const,
       path: '/api/transactions',
+      input: z.object({ debtId: z.string().optional(), savingsGoalId: z.string().optional() }).optional(),
       responses: { 200: z.array(z.custom<typeof transactions.$inferSelect>()) },
     },
     create: {
@@ -266,6 +271,12 @@ export const api = {
       path: '/api/transactions',
       input: insertTransactionSchemaCoerced,
       responses: { 201: z.custom<typeof transactions.$inferSelect>() },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/transactions/:id',
+      input: updateTransactionSchema,
+      responses: { 200: z.custom<typeof transactions.$inferSelect>() },
     },
     delete: {
       method: 'DELETE' as const,
@@ -319,7 +330,13 @@ export const api = {
       method: 'DELETE' as const,
       path: '/api/debts/:id',
       responses: { 204: z.void() },
-    }
+    },
+    pay: {
+      method: 'POST' as const,
+      path: '/api/debts/:id/pay',
+      input: z.object({ amount: z.coerce.number().positive() }),
+      responses: { 200: z.custom<typeof debts.$inferSelect>() },
+    },
   },
   savings: {
     list: {
@@ -343,7 +360,13 @@ export const api = {
       method: 'DELETE' as const,
       path: '/api/savings/:id',
       responses: { 204: z.void() },
-    }
+    },
+    deposit: {
+      method: 'POST' as const,
+      path: '/api/savings/:id/deposit',
+      input: z.object({ amount: z.coerce.number().positive() }),
+      responses: { 200: z.custom<typeof savingsGoals.$inferSelect>() },
+    },
   },
   journal: {
     list: {

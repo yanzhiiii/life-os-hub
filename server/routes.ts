@@ -258,7 +258,9 @@ export async function registerRoutes(
 
   // Transactions
   app.get(api.transactions.list.path, isAuthenticated, async (req, res) => {
-    const txs = await storage.getTransactions(getUserId(req));
+    const debtId = req.query.debtId ? Number(req.query.debtId) : undefined;
+    const savingsGoalId = req.query.savingsGoalId ? Number(req.query.savingsGoalId) : undefined;
+    const txs = await storage.getTransactions(getUserId(req), { debtId, savingsGoalId });
     res.json(txs);
   });
 
@@ -266,6 +268,13 @@ export async function registerRoutes(
     const input = api.transactions.create.input.parse(req.body);
     const tx = await storage.createTransaction(getUserId(req), input);
     res.status(201).json(tx);
+  });
+
+  app.patch(api.transactions.update.path, isAuthenticated, async (req, res) => {
+    const input = api.transactions.update.input.parse(req.body);
+    const updated = await storage.updateTransaction(Number(req.params.id), input);
+    if (!updated) return res.status(404).json({ message: "Not found" });
+    res.json(updated);
   });
 
   app.delete(api.transactions.delete.path, isAuthenticated, async (req, res) => {
@@ -319,6 +328,13 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  app.post(api.debts.pay.path, isAuthenticated, async (req, res) => {
+    const input = api.debts.pay.input.parse(req.body);
+    const updated = await storage.payDebt(getUserId(req), Number(req.params.id), input.amount);
+    if (!updated) return res.status(404).json({ message: "Not found" });
+    res.json(updated);
+  });
+
   // Savings
   app.get(api.savings.list.path, isAuthenticated, async (req, res) => {
     const savings = await storage.getSavingsGoals(getUserId(req));
@@ -340,6 +356,13 @@ export async function registerRoutes(
   app.delete(api.savings.delete.path, isAuthenticated, async (req, res) => {
     await storage.deleteSavingsGoal(Number(req.params.id));
     res.status(204).send();
+  });
+
+  app.post(api.savings.deposit.path, isAuthenticated, async (req, res) => {
+    const input = api.savings.deposit.input.parse(req.body);
+    const updated = await storage.depositSavings(getUserId(req), Number(req.params.id), input.amount);
+    if (!updated) return res.status(404).json({ message: "Not found" });
+    res.json(updated);
   });
 
   // Journal

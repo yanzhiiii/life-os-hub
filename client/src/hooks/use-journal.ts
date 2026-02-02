@@ -30,6 +30,24 @@ export function useCreateJournalEntry() {
   });
 }
 
+export function useUpdateJournalEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: number } & Partial<InsertJournalEntry>) => {
+      const url = buildUrl(api.journal.update.path, { id });
+      const res = await fetch(url, {
+        method: api.journal.update.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update journal entry");
+      return api.journal.update.responses[200].parse(await res.json());
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.journal.list.path] }),
+  });
+}
+
 export function useDeleteJournalEntry() {
   const queryClient = useQueryClient();
   return useMutation({

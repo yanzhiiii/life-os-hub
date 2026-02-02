@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { useTransactions, useCreateTransaction, useDebts, useCreateDebt, useDeleteDebt, useSavingsGoals, useCreateSavingsGoal, useDeleteSavingsGoal } from "@/hooks/use-finance";
+import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction, useDebts, useCreateDebt, useDeleteDebt, usePayDebt, useSavingsGoals, useCreateSavingsGoal, useDeleteSavingsGoal, useDepositSavings } from "@/hooks/use-finance";
 import { useRecurringTemplates, useCreateRecurringTemplate, useDeleteRecurringTemplate } from "@/hooks/use-recurring-templates";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTransactionSchema, insertDebtSchema, insertSavingsGoalSchema, insertRecurringTemplateSchema } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { z } from "zod";
-import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3, Repeat, Eye, EyeOff } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, Link2, Trash2, CalendarDays, ChevronLeft, ChevronRight, DollarSign, BarChart3, Repeat, Eye, EyeOff, History, Pencil } from "lucide-react";
 
 // Privacy context for hiding financial amounts
 const PrivacyContext = createContext<{ hideAmounts: boolean; toggleHide: () => void }>({
@@ -32,6 +32,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip } from "
 import { cn } from "@/lib/utils";
 
 const transactionSchema = insertTransactionSchema.extend({
+  name: z.string().min(1, "Name is required"),
   amount: z.coerce.number().min(0.01),
   date: z.coerce.date(),
 });
@@ -150,28 +151,50 @@ function TransactionsView() {
   const { data: transactions } = useTransactions();
   const { data: user } = useUser();
   const { mutate: createTransaction } = useCreateTransaction();
+  const { mutate: updateTransaction } = useUpdateTransaction();
+  const { mutate: deleteTransaction } = useDeleteTransaction();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const currency = user?.currency || "PHP";
   const privateCurrency = usePrivateCurrency();
 
+  const defaultTxValues = { name: "", type: "expense" as const, amount: 0, category: "Food", date: new Date(), note: "" };
   const form = useForm<z.infer<typeof transactionSchema>>({
     resolver: zodResolver(transactionSchema),
-    defaultValues: {
-      type: "expense",
-      amount: 0,
-      category: "Food",
-      date: new Date(),
-      note: ""
-    }
+    defaultValues: defaultTxValues
   });
 
   const onSubmit = (data: z.infer<typeof transactionSchema>) => {
-    createTransaction({ ...data, amount: String(data.amount) }, {
-      onSuccess: () => {
-        setIsOpen(false);
-        form.reset();
-      }
+    const payload = { ...data, amount: String(data.amount), date: data.date };
+    if (editingId) {
+      updateTransaction({ id: editingId, ...payload }, {
+        onSuccess: () => {
+          setIsOpen(false);
+          setEditingId(null);
+          form.reset(defaultTxValues);
+        }
+      });
+    } else {
+      createTransaction(payload, {
+        onSuccess: () => {
+          setIsOpen(false);
+          form.reset(defaultTxValues);
+        }
+      });
+    }
+  };
+
+  const openEdit = (t: (typeof transactions)[0]) => {
+    setEditingId(t.id);
+    form.reset({
+      name: t.name || t.category || "",
+      type: t.type as "income" | "expense",
+      amount: Number(t.amount),
+      category: t.category,
+      date: new Date(t.date),
+      note: t.note || ""
     });
+    setIsOpen(true);
   };
 
   const income = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
@@ -194,19 +217,24 @@ function TransactionsView() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { setEditingId(null); form.reset(defaultTxValues); } setIsOpen(open); }}>
           <DialogTrigger asChild>
-            <Button className="rounded-xl px-6 bg-primary shadow-lg shadow-primary/25" data-testid="button-add-transaction">
+            <Button className="rounded-xl px-6 bg-primary shadow-lg shadow-primary/25" onClick={() => { setEditingId(null); form.reset(defaultTxValues); }} data-testid="button-add-transaction">
               <Plus className="w-4 h-4 mr-2" /> Add Transaction
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Transaction</DialogTitle>
+              <DialogTitle>{editingId ? "Edit Transaction" : "Add Transaction"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Name (required)</label>
+                <Input placeholder="e.g. Groceries, Salary" {...form.register("name")} data-testid="input-tx-name" />
+                {form.formState.errors.name && <p className="text-xs text-destructive mt-1">{form.formState.errors.name.message}</p>}
+              </div>
               <div className="grid grid-cols-2 gap-4">
-                <Select onValueChange={(v) => form.setValue("type", v)} defaultValue="expense">
+                <Select onValueChange={(v) => { form.setValue("type", v as "income" | "expense"); form.setValue("category", v === "income" ? "Salary" : "Food"); }} value={form.watch("type")}>
                   <SelectTrigger data-testid="select-tx-type">
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
@@ -217,10 +245,22 @@ function TransactionsView() {
                 </Select>
                 <Input type="number" step="0.01" placeholder="Amount" {...form.register("amount")} data-testid="input-tx-amount" />
               </div>
-              <Input placeholder="Category (e.g. Food, Rent)" {...form.register("category")} data-testid="input-tx-category" />
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Category</label>
+                <Select onValueChange={(v) => form.setValue("category", v)} value={form.watch("category")}>
+                  <SelectTrigger data-testid="select-tx-category">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {form.watch("type") === "income"
+                      ? INCOME_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                      : EXPENSE_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <Input type="date" {...form.register("date")} data-testid="input-tx-date" />
               <Input placeholder="Note (optional)" {...form.register("note")} data-testid="input-tx-note" />
-              <Button type="submit" className="w-full" data-testid="button-save-transaction">Save Transaction</Button>
+              <Button type="submit" className="w-full" data-testid="button-save-transaction">{editingId ? "Update" : "Save"} Transaction</Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -279,19 +319,27 @@ function TransactionsView() {
             <CardContent>
               <div className="space-y-4">
                 {transactions?.slice(0, 10).map((t) => (
-                  <div key={t.id} className="flex items-center justify-between p-4 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-colors" data-testid={`card-transaction-${t.id}`}>
+                  <div key={t.id} className="group flex items-center justify-between p-4 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-colors" data-testid={`card-transaction-${t.id}`}>
                     <div className="flex items-center gap-4">
                       <div className={`p-2 rounded-lg ${t.type === 'income' ? 'bg-green-100 text-green-600 dark:bg-green-900/30' : 'bg-red-100 text-red-600 dark:bg-red-900/30'}`}>
                         {t.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
                       </div>
                       <div>
-                        <p className="font-medium">{t.category}</p>
+                        <p className="font-medium">{t.name || t.category}</p>
                         <p className="text-xs text-muted-foreground">{format(new Date(t.date), "MMM d, yyyy")}</p>
                       </div>
                     </div>
-                    <span className={`font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                      {t.type === 'income' ? '+' : '-'}{privateCurrency(Number(t.amount), currency)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                        {t.type === 'income' ? '+' : '-'}{privateCurrency(Number(t.amount), currency)}
+                      </span>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => openEdit(t)} data-testid={`button-edit-tx-${t.id}`}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive" onClick={() => deleteTransaction(t.id)} data-testid={`button-delete-tx-${t.id}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 {(!transactions || transactions.length === 0) && (
@@ -363,9 +411,14 @@ function DebtsView() {
   const { data: user } = useUser();
   const { mutate: createDebt } = useCreateDebt();
   const { mutate: deleteDebt } = useDeleteDebt();
+  const { mutate: payDebt } = usePayDebt();
   const [isOpen, setIsOpen] = useState(false);
+  const [payDebtId, setPayDebtId] = useState<number | null>(null);
+  const [payAmount, setPayAmount] = useState("");
+  const [seeTxDebtId, setSeeTxDebtId] = useState<number | null>(null);
   const currency = user?.currency || "PHP";
   const privateCurrency = usePrivateCurrency();
+  const { data: debtTransactions } = useTransactions(seeTxDebtId != null ? { debtId: seeTxDebtId } : undefined);
 
   const form = useForm<z.infer<typeof debtSchema>>({
     resolver: zodResolver(debtSchema),
@@ -513,6 +566,30 @@ function DebtsView() {
                     </div>
                   )}
                 </div>
+                <div className="flex gap-2 mt-4 pt-3 border-t">
+                  <Dialog open={payDebtId === debt.id} onOpenChange={(open) => { if (!open) setPayDebtId(null); setPayAmount(""); }}>
+                    <DialogTrigger asChild>
+                      <Button variant="default" size="sm" className="flex-1" onClick={() => setPayDebtId(debt.id)} data-testid={`button-pay-debt-${debt.id}`}>
+                        Pay Debt
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Pay Debt: {debt.name}</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-2">
+                        <Label>Amount</Label>
+                        <Input type="number" step="0.01" min="0.01" max={Number(debt.remainingAmount)} placeholder="0" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} data-testid={`input-pay-amount-${debt.id}`} />
+                        <Button className="w-full" disabled={!payAmount || Number(payAmount) <= 0 || Number(payAmount) > Number(debt.remainingAmount)} onClick={() => { payDebt({ debtId: debt.id, amount: Number(payAmount) }); setPayDebtId(null); setPayAmount(""); }} data-testid={`button-confirm-pay-${debt.id}`}>
+                          Confirm Payment
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button variant="outline" size="sm" className="gap-1" onClick={() => setSeeTxDebtId(debt.id)} data-testid={`button-see-tx-debt-${debt.id}`}>
+                    <History className="w-4 h-4" /> See transactions
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );
@@ -524,6 +601,40 @@ function DebtsView() {
           </div>
         )}
       </div>
+
+      <Dialog open={seeTxDebtId != null} onOpenChange={(open) => !open && setSeeTxDebtId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Payment history {seeTxDebtId != null && debts?.find(d => d.id === seeTxDebtId) && `– ${debts?.find(d => d.id === seeTxDebtId)?.name}`}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {debtTransactions?.length ? (
+              <>
+                <p className="text-xs font-medium text-muted-foreground">Latest</p>
+                {debtTransactions.slice(0, 1).map((t) => (
+                  <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border">
+                    <span className="font-medium">{t.name || t.category}</span>
+                    <span className="text-red-600 font-bold">-{privateCurrency(Number(t.amount), currency)}</span>
+                  </div>
+                ))}
+                {debtTransactions.length > 1 && (
+                  <>
+                    <p className="text-xs font-medium text-muted-foreground mt-3">History</p>
+                    {debtTransactions.slice(1, 10).map((t) => (
+                      <div key={t.id} className="flex items-center justify-between py-2 text-sm">
+                        <span>{format(new Date(t.date), "MMM d, yyyy")}</span>
+                        <span className="text-red-600">-{privateCurrency(Number(t.amount), currency)}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">No payments recorded yet.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -533,9 +644,14 @@ function SavingsView() {
   const { data: user } = useUser();
   const { mutate: createSavings } = useCreateSavingsGoal();
   const { mutate: deleteSavings } = useDeleteSavingsGoal();
+  const { mutate: depositSavings } = useDepositSavings();
   const [isOpen, setIsOpen] = useState(false);
+  const [depositGoalId, setDepositGoalId] = useState<number | null>(null);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [seeTxGoalId, setSeeTxGoalId] = useState<number | null>(null);
   const currency = user?.currency || "PHP";
   const privateCurrency = usePrivateCurrency();
+  const { data: savingsTransactions } = useTransactions(seeTxGoalId != null ? { savingsGoalId: seeTxGoalId } : undefined);
 
   const form = useForm<z.infer<typeof savingsSchema>>({
     resolver: zodResolver(savingsSchema),
@@ -648,6 +764,30 @@ function SavingsView() {
                   </div>
                   <Progress value={progress} className="h-2" />
                 </div>
+                <div className="flex gap-2 mt-4 pt-3 border-t">
+                  <Dialog open={depositGoalId === goal.id} onOpenChange={(open) => { if (!open) setDepositGoalId(null); setDepositAmount(""); }}>
+                    <DialogTrigger asChild>
+                      <Button variant="default" size="sm" className="flex-1" onClick={() => setDepositGoalId(goal.id)} data-testid={`button-add-savings-${goal.id}`}>
+                        Add to Savings
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add to Savings: {goal.name}</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-2">
+                        <Label>Amount</Label>
+                        <Input type="number" step="0.01" min="0.01" placeholder="0" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} data-testid={`input-deposit-amount-${goal.id}`} />
+                        <Button className="w-full" disabled={!depositAmount || Number(depositAmount) <= 0} onClick={() => { depositSavings({ savingsGoalId: goal.id, amount: Number(depositAmount) }); setDepositGoalId(null); setDepositAmount(""); }} data-testid={`button-confirm-deposit-${goal.id}`}>
+                          Confirm
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button variant="outline" size="sm" className="gap-1" onClick={() => setSeeTxGoalId(goal.id)} data-testid={`button-see-tx-savings-${goal.id}`}>
+                    <History className="w-4 h-4" /> See transactions
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );
@@ -659,6 +799,40 @@ function SavingsView() {
           </div>
         )}
       </div>
+
+      <Dialog open={seeTxGoalId != null} onOpenChange={(open) => !open && setSeeTxGoalId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Deposit history {seeTxGoalId != null && savings?.find(s => s.id === seeTxGoalId) && `– ${savings?.find(s => s.id === seeTxGoalId)?.name}`}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {savingsTransactions?.length ? (
+              <>
+                <p className="text-xs font-medium text-muted-foreground">Latest</p>
+                {savingsTransactions.slice(0, 1).map((t) => (
+                  <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border">
+                    <span className="font-medium">{t.name || t.category}</span>
+                    <span className="text-green-600 font-bold">+{privateCurrency(Number(t.amount), currency)}</span>
+                  </div>
+                ))}
+                {savingsTransactions.length > 1 && (
+                  <>
+                    <p className="text-xs font-medium text-muted-foreground mt-3">History</p>
+                    {savingsTransactions.slice(1, 10).map((t) => (
+                      <div key={t.id} className="flex items-center justify-between py-2 text-sm">
+                        <span>{format(new Date(t.date), "MMM d, yyyy")}</span>
+                        <span className="text-green-600">+{privateCurrency(Number(t.amount), currency)}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">No deposits recorded yet.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -692,7 +866,8 @@ const usePrivateCurrency = () => {
   };
 };
 
-const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Rent', 'Utilities', 'Internet', 'Laundry', 'Entertainment', 'Shopping', 'Health', 'Other'];
+const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Rent', 'Utilities', 'Internet', 'Laundry', 'Entertainment', 'Shopping', 'Health', 'Debt Payment', 'Other'];
+const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Investment', 'Gift', 'Savings', 'Refund', 'Other'];
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -703,6 +878,8 @@ function FinanceCalendarView() {
   const { mutate: createRecurring, isPending: isCreating } = useCreateRecurringTemplate();
   const { mutate: deleteRecurring } = useDeleteRecurringTemplate();
   const { mutate: createTransaction, isPending: isCreatingTx } = useCreateTransaction();
+  const { mutate: updateTransaction } = useUpdateTransaction();
+  const { mutate: deleteTransaction } = useDeleteTransaction();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showRecurringDialog, setShowRecurringDialog] = useState(false);
@@ -713,6 +890,7 @@ function FinanceCalendarView() {
   const transactionForm = useForm<z.infer<typeof transactionSchema>>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
+      name: "",
       type: "expense",
       amount: 0,
       category: "Food",
@@ -721,13 +899,26 @@ function FinanceCalendarView() {
     }
   });
   
+  const [editingTxId, setEditingTxId] = useState<number | null>(null);
+  
   const onSubmitTransaction = (data: z.infer<typeof transactionSchema>) => {
-    createTransaction({ ...data, amount: String(data.amount) }, {
-      onSuccess: () => {
-        setShowTransactionDialog(false);
-        transactionForm.reset();
-      }
-    });
+    const payload = { ...data, amount: String(data.amount), date: data.date };
+    if (editingTxId) {
+      updateTransaction({ id: editingTxId, ...payload }, {
+        onSuccess: () => {
+          setShowTransactionDialog(false);
+          setEditingTxId(null);
+          transactionForm.reset({ ...transactionForm.getValues(), name: "", type: "expense", amount: 0, category: "Food", date: selectedDate || new Date(), note: "" });
+        }
+      });
+    } else {
+      createTransaction(payload, {
+        onSuccess: () => {
+          setShowTransactionDialog(false);
+          transactionForm.reset({ ...transactionForm.getValues(), name: "", type: "expense", amount: 0, category: "Food", date: selectedDate || new Date(), note: "" });
+        }
+      });
+    }
   };
   
   const recurringForm = useForm<RecurringFormData>({
@@ -758,7 +949,7 @@ function FinanceCalendarView() {
       dayOfWeek: data.frequency === 'weekly' || data.frequency === 'biweekly' ? data.dayOfWeek : undefined,
       everyNDays: data.frequency === 'everyN' ? data.everyNDays : undefined,
       note: data.note || undefined,
-      startDate: new Date(),
+      startDate: selectedDate || new Date(),
       isActive: true,
     });
     setShowRecurringDialog(false);
@@ -1390,29 +1581,43 @@ function FinanceCalendarView() {
               <div className="flex gap-2">
                 <Dialog open={showTransactionDialog} onOpenChange={(open) => {
                   setShowTransactionDialog(open);
-                  if (open && selectedDate) {
-                    transactionForm.setValue("date", selectedDate);
-                  }
+                  if (open) {
+                    if (selectedDate) transactionForm.setValue("date", selectedDate);
+                    if (!editingTxId) transactionForm.setValue("name", "");
+                  } else setEditingTxId(null);
                 }}>
                   <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1.5" data-testid="button-add-transaction">
+                    <Button size="sm" className="gap-1.5" onClick={() => { setEditingTxId(null); if (selectedDate) transactionForm.setValue("date", selectedDate); }} data-testid="button-add-transaction">
                       <Plus className="w-4 h-4" />
                       Add Transaction
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Add Transaction{selectedDate ? ` for ${format(selectedDate, "MMMM d, yyyy")}` : ""}</DialogTitle>
+                      <DialogTitle>{editingTxId ? "Edit Transaction" : "Add Transaction"}{selectedDate ? ` for ${format(selectedDate, "MMMM d, yyyy")}` : ""}</DialogTitle>
                     </DialogHeader>
                     <Form {...transactionForm}>
                       <form onSubmit={transactionForm.handleSubmit(onSubmitTransaction)} className="space-y-4 pt-4">
+                        <FormField
+                          control={transactionForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Name (required)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g. Groceries" {...field} data-testid="input-tx-name" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                         <FormField
                           control={transactionForm.control}
                           name="type"
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Type</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <Select onValueChange={(v) => { field.onChange(v); transactionForm.setValue("category", v === "income" ? "Salary" : "Food"); }} value={field.value}>
                                 <FormControl>
                                   <SelectTrigger data-testid="select-tx-type">
                                     <SelectValue placeholder="Select type" />
@@ -1444,16 +1649,16 @@ function FinanceCalendarView() {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Category</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl>
                                   <SelectTrigger data-testid="select-tx-category">
                                     <SelectValue placeholder="Select category" />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  {EXPENSE_CATEGORIES.map(cat => (
-                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                  ))}
+                                  {transactionForm.watch("type") === "income"
+                                    ? INCOME_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                                    : EXPENSE_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </FormItem>
@@ -1489,7 +1694,7 @@ function FinanceCalendarView() {
                           )}
                         />
                         <Button type="submit" className="w-full" disabled={isCreatingTx} data-testid="button-save-tx">
-                          {isCreatingTx ? 'Saving...' : 'Save Transaction'}
+                          {isCreatingTx ? 'Saving...' : editingTxId ? 'Update Transaction' : 'Save Transaction'}
                         </Button>
                       </form>
                     </Form>
@@ -1572,9 +1777,9 @@ function FinanceCalendarView() {
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    {EXPENSE_CATEGORIES.map(cat => (
-                                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                    ))}
+                                    {recurringForm.watch("type") === "income"
+                                      ? INCOME_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                                      : EXPENSE_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -1887,7 +2092,7 @@ function FinanceCalendarView() {
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           <p className="text-xs font-medium text-muted-foreground">Transactions</p>
                           {getDaySummary(selectedDate).transactions.map(t => (
-                            <div key={t.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30" data-testid={`finance-tx-${t.id}`}>
+                            <div key={t.id} className="group flex items-center justify-between p-2 rounded-lg bg-secondary/30" data-testid={`finance-tx-${t.id}`}>
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className={cn(
                                   "p-1.5 rounded-lg flex-shrink-0",
@@ -1896,16 +2101,24 @@ function FinanceCalendarView() {
                                   {t.type === 'income' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-medium text-xs truncate">{t.category}</p>
+                                  <p className="font-medium text-xs truncate">{t.name || t.category}</p>
                                   {t.note && <p className="text-[10px] text-muted-foreground truncate">{t.note}</p>}
                                 </div>
                               </div>
-                              <span className={cn(
-                                "font-bold text-xs flex-shrink-0",
-                                t.type === 'income' ? "text-green-600" : "text-red-600"
-                              )}>
-                                {t.type === 'income' ? '+' : '-'}{privateCurrency(Number(t.amount), currency)}
-                              </span>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <span className={cn(
+                                  "font-bold text-xs",
+                                  t.type === 'income' ? "text-green-600" : "text-red-600"
+                                )}>
+                                  {t.type === 'income' ? '+' : '-'}{privateCurrency(Number(t.amount), currency)}
+                                </span>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => { setEditingTxId(t.id); transactionForm.reset({ name: t.name || t.category || "", type: t.type as "income" | "expense", amount: Number(t.amount), category: t.category, date: new Date(t.date), note: t.note || "" }); setShowTransactionDialog(true); }} data-testid={`button-edit-cal-tx-${t.id}`}>
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => deleteTransaction(t.id)} data-testid={`button-delete-cal-tx-${t.id}`}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
                             </div>
                           ))}
                         </div>

@@ -51,9 +51,12 @@ export interface IStorage {
   deleteEvent(id: number): Promise<void>;
 
   // Transactions
-  getTransactions(userId: number): Promise<Transaction[]>;
+  getTransactions(userId: number, filters?: { debtId?: number; savingsGoalId?: number }): Promise<Transaction[]>;
   createTransaction(userId: number, transaction: InsertTransaction): Promise<Transaction>;
+  updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined>;
   deleteTransaction(id: number): Promise<void>;
+  payDebt(userId: number, debtId: number, amount: number): Promise<Debt | undefined>;
+  depositSavings(userId: number, savingsGoalId: number, amount: number): Promise<SavingsGoal | undefined>;
 
   // Recurring Templates
   getRecurringTemplates(userId: number): Promise<RecurringTemplate[]>;
@@ -226,8 +229,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Transactions
-  async getTransactions(userId: number): Promise<Transaction[]> {
-    return db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(desc(transactions.date));
+  async getTransactions(userId: number, filters?: { debtId?: number; savingsGoalId?: number }): Promise<Transaction[]> {
+    const rows = await db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(desc(transactions.date));
+    if (filters?.debtId !== undefined) {
+      return rows.filter((t: Transaction) => t.debtId === filters.debtId);
+    }
+    if (filters?.savingsGoalId !== undefined) {
+      return rows.filter((t: Transaction) => t.savingsGoalId === filters.savingsGoalId);
+    }
+    return rows;
   }
 
   async createTransaction(userId: number, transaction: InsertTransaction): Promise<Transaction> {
@@ -235,8 +245,45 @@ export class DatabaseStorage implements IStorage {
     return newTx;
   }
 
+  async updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined> {
+    const [updated] = await db.update(transactions).set(transaction).where(eq(transactions.id, id)).returning();
+    return updated;
+  }
+
   async deleteTransaction(id: number): Promise<void> {
     await db.delete(transactions).where(eq(transactions.id, id));
+  }
+
+  async payDebt(userId: number, debtId: number, amount: number): Promise<Debt | undefined> {
+    const [debt] = await db.select().from(debts).where(and(eq(debts.id, debtId), eq(debts.userId, userId)));
+    if (!debt) return undefined;
+    const remaining = Math.max(0, Number(debt.remainingAmount) - amount);
+    const [updated] = await db.update(debts).set({ remainingAmount: String(remaining) }).where(eq(debts.id, debtId)).returning();
+    await this.createTransaction(userId, {
+      name: `Payment: ${debt.name}`,
+      type: "expense",
+      amount: String(amount),
+      date: new Date(),
+      category: "Debt Payment",
+      debtId,
+    });
+    return updated;
+  }
+
+  async depositSavings(userId: number, savingsGoalId: number, amount: number): Promise<SavingsGoal | undefined> {
+    const [goal] = await db.select().from(savingsGoals).where(and(eq(savingsGoals.id, savingsGoalId), eq(savingsGoals.userId, userId)));
+    if (!goal) return undefined;
+    const current = Number(goal.currentAmount || 0) + amount;
+    const [updated] = await db.update(savingsGoals).set({ currentAmount: String(current) }).where(eq(savingsGoals.id, savingsGoalId)).returning();
+    await this.createTransaction(userId, {
+      name: `Deposit: ${goal.name}`,
+      type: "income",
+      amount: String(amount),
+      date: new Date(),
+      category: "Savings",
+      savingsGoalId,
+    });
+    return updated;
   }
 
   async getRecurringTemplates(userId: number): Promise<RecurringTemplate[]> {

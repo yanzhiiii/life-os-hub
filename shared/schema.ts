@@ -71,12 +71,15 @@ export const events = pgTable("events", {
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
+  name: text("name").notNull().default(""),
   type: text("type").notNull(), // income, expense
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   date: timestamp("date").notNull(),
   category: text("category").notNull(),
   note: text("note"),
   isRecurring: boolean("is_recurring").default(false),
+  debtId: integer("debt_id"), // set when transaction is a debt payment
+  savingsGoalId: integer("savings_goal_id"), // set when transaction is a savings deposit
 });
 
 export const recurringTemplates = pgTable("recurring_templates", {
@@ -174,7 +177,9 @@ export const insertRoutineCompletionSchema = createInsertSchema(routineCompletio
 export const insertGoalSchema = createInsertSchema(goals).omit({ id: true, userId: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, userId: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true, userId: true });
-export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, userId: true });
+export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, userId: true }).extend({
+  name: z.string().min(1, "Name is required"),
+});
 export const insertRecurringTemplateSchema = createInsertSchema(recurringTemplates).omit({ id: true, userId: true }).extend({
   startDate: z.coerce.date(),
   endDate: z.coerce.date().optional().nullable(),

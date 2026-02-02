@@ -30,6 +30,24 @@ export function useCreateRoutine() {
   });
 }
 
+export function useUpdateRoutine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: number } & Partial<InsertRoutine>) => {
+      const url = buildUrl(api.routines.update.path, { id });
+      const res = await fetch(url, {
+        method: api.routines.update.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update routine");
+      return api.routines.update.responses[200].parse(await res.json());
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.routines.list.path] }),
+  });
+}
+
 export function useRoutineCompletions(date?: string) {
   return useQuery({
     queryKey: [api.routines.getCompletions.path, date],
