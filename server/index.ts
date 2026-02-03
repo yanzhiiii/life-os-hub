@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -90,14 +91,19 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+
+  const isProd = process.env.NODE_ENV === "production";
+  const host = isProd ? "0.0.0.0" : "127.0.0.1";
+
+  // Windows often doesn't support reusePort; only enable in production
+  const listenOptions: { port: number; host: string; reusePort?: boolean } = {
+    port,
+    host,
+  };
+  if (isProd) listenOptions.reusePort = true;
+
+  httpServer.listen(listenOptions, () => {
+    log(`serving on http://${host}:${port}`);
+  });
+
 })();
